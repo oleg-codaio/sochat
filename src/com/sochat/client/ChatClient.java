@@ -5,12 +5,14 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.Scanner;
 
 import com.sochat.shared.Constants;
 import com.sochat.shared.StandardUserIO;
 import com.sochat.shared.UserIO;
 import com.sochat.shared.Utils;
 import com.sochat.shared.Constants.MessageType;
+
 
 /**
  * Class that contains the chat client, which can send the GREETING message to
@@ -71,15 +73,28 @@ public class ChatClient implements Runnable {
         // start listener thread
         new PrintReceivedMessagesThread().start();
 
+      //  Console cons = System.console();
+        String username; String password;
+        Scanner scanner = new Scanner(System.in);
+        System.out.print("Enter your username: ");
+        username = scanner.nextLine();
+        System.out.print("Enter your password: ");
+        password = scanner.nextLine();
+        String info = username + ":" + password;
+        
         // send GREETING to server
         mUserIO.logMessage("Attaching to server " + mServerAddress + ":" + mServerPort + "...");
         byte[] attachBuffer = { Constants.MESSAGE_HEADER[0], Constants.MESSAGE_HEADER[1],
                 Constants.MESSAGE_HEADER[2], Constants.MESSAGE_HEADER[3],
-                (byte) MessageType.GREETING.ordinal() };
+                (byte) MessageType.GREETING.ordinal()};
+        System.arraycopy(attachBuffer, 0, mBuffer, 0, attachBuffer.length);
+        System.arraycopy(info.getBytes(), 0, mBuffer, 5, info.getBytes().length);
         DatagramPacket attachPacket = new DatagramPacket(attachBuffer, attachBuffer.length, mServerAddress,
                 mServerPort);
         try {
             mSocket.send(attachPacket);
+          
+            
         } catch (IOException e) {
             mUserIO.logError("Error sending GREETING to server: " + e);
             // e.printStackTrace();

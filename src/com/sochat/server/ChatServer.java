@@ -5,6 +5,7 @@ import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.util.LinkedHashSet;
 import java.util.Set;
+import java.util.*;
 
 import com.sochat.shared.Constants;
 import com.sochat.shared.StandardUserIO;
@@ -47,7 +48,14 @@ public class ChatServer implements Runnable {
      * The logger this server will use to print messages.
      */
     private final UserIO mLogger;
-
+    
+    private final ArrayList<ArrayList<String>> userinfo = new ArrayList<ArrayList<String>>();
+    private final ArrayList <String> user1 = new ArrayList <String>();
+    private final ArrayList <String> user2 = new ArrayList <String>();
+    private final ArrayList <String> user3 = new ArrayList <String>();
+    private final ArrayList <String> user4 = new ArrayList <String>();
+    private final ArrayList <String> user5 = new ArrayList <String>();
+    
     /**
      * Creates a new chat server running on the specified port.
      * 
@@ -63,6 +71,16 @@ public class ChatServer implements Runnable {
         mPort = port;
         mSocket = new DatagramSocket(mPort);
         mLogger.logMessage("Running on " + mSocket.getLocalAddress() + ":" + mSocket.getLocalPort() + "...");
+        user1.add("Saba"); user1.add("sabapassword");
+        user2.add("Oleg"); user2.add("olegpassword");
+        user3.add("Joni"); user3.add("jonipassword");
+        user4.add("Amirali"); user4.add("amirpassword");
+        user5.add("Guevara"); user5.add("guevpassword");
+        userinfo.add(user1);
+        userinfo.add(user2);
+        userinfo.add(user3);
+        userinfo.add(user4);
+        userinfo.add(user5);
     }
 
     /**
@@ -111,6 +129,9 @@ public class ChatServer implements Runnable {
             MessageType type = MessageType.values()[messageType];
             switch (type) {
             case GREETING:
+            	
+       	
+            	
                 // add this client to our set of connected clients
                 mLogger.logMessage("Accepted new client at " + packet.getAddress().getHostAddress() + ":"
                         + packet.getPort());
@@ -163,6 +184,7 @@ public class ChatServer implements Runnable {
     }
 
     public static void main(String args[]) {
+
         if (args.length != 1) {
             printUsage();
             return;
