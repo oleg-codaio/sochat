@@ -1,4 +1,4 @@
-package com.olegvaskevich.chat.shared;
+package com.sochat.shared;
 
 public class Utils {
 

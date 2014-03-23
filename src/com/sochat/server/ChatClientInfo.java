@@ -1,4 +1,4 @@
-package com.olegvaskevich.chat.server;
+package com.sochat.server;
 
 import java.net.InetAddress;
 

@@ -1,4 +1,4 @@
-package com.olegvaskevich.chat.server;
+package com.sochat.server;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -6,18 +6,18 @@ import java.net.DatagramSocket;
 import java.util.LinkedHashSet;
 import java.util.Set;
 
-import com.olegvaskevich.chat.shared.Constants;
-import com.olegvaskevich.chat.shared.Constants.MessageType;
-import com.olegvaskevich.chat.shared.UserIO;
-import com.olegvaskevich.chat.shared.StandardUserIO;
-import com.olegvaskevich.chat.shared.Utils;
+import com.sochat.shared.Constants;
+import com.sochat.shared.StandardUserIO;
+import com.sochat.shared.UserIO;
+import com.sochat.shared.Utils;
+import com.sochat.shared.Constants.MessageType;
 
 /**
  * Class that contains the chat server, which can receive GREETING messages from
  * a theoretically unlimited number of clients as well as broadcast messages
  * sent from individual chat clients to all the other connected chat clients.
  * 
- * @author Oleg Vaskevich
+ * @author Oleg, Saba
  */
 public class ChatServer implements Runnable {
 

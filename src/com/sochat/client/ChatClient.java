@@ -1,4 +1,4 @@
-package com.olegvaskevich.chat.client;
+package com.sochat.client;
 
 import java.io.IOException;
 import java.net.DatagramPacket;
@@ -6,18 +6,18 @@ import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
 
-import com.olegvaskevich.chat.shared.Constants;
-import com.olegvaskevich.chat.shared.Constants.MessageType;
-import com.olegvaskevich.chat.shared.StandardUserIO;
-import com.olegvaskevich.chat.shared.UserIO;
-import com.olegvaskevich.chat.shared.Utils;
+import com.sochat.shared.Constants;
+import com.sochat.shared.StandardUserIO;
+import com.sochat.shared.UserIO;
+import com.sochat.shared.Utils;
+import com.sochat.shared.Constants.MessageType;
 
 /**
  * Class that contains the chat client, which can send the GREETING message to
  * establish a connection to a chat server as well as send the chat server a
  * message to be sent to other chat servers.
  * 
- * @author Oleg Vaskevich
+ * @author Oleg, Saba
  */
 public class ChatClient implements Runnable {
 
