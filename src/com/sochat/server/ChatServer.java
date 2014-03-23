@@ -186,8 +186,9 @@ public class ChatServer implements Runnable {
     }
 
     private static void printUsage() {
-        System.out.println("ChatServer, by Oleg Vaskevich for CS4740 (1/26/2014)\n\n"
-                + "usage: java ChatServer port\n\n" + "Report bugs to me@olegvaskevich.com.");
+    	  System.out.println("SOChat, by Oleg and Saba for CS4740 final project\n\n"
+                  + "usage: java SOChatServer serverPort\n\n"
+                  + "Report bugs to me@olegvaskevich.com.");
     }
 
 }

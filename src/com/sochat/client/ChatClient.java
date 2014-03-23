@@ -227,8 +227,8 @@ public class ChatClient implements Runnable {
     }
 
     private static void printUsage() {
-        System.out.println("ChatClient, by Oleg Vaskevich for CS4740 (1/26/2014)\n\n"
-                + "usage: java ChatClient serverIpAddress serverPort\n\n"
+        System.out.println("SOChat, by Oleg and Saba for CS4740 final project\n\n"
+                + "usage: java SOChat serverIpAddress serverPort\n\n"
                 + "Report bugs to me@olegvaskevich.com.");
     }
 
