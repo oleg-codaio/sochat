@@ -75,7 +75,8 @@ public class ChatClient implements Runnable {
 
       //  Console cons = System.console();
         String username; String password;
-        Scanner scanner = new Scanner(System.in);
+        @SuppressWarnings("resource")
+		Scanner scanner = new Scanner(System.in);
         System.out.print("Enter your username: ");
         username = scanner.nextLine();
         System.out.print("Enter your password: ");
@@ -89,11 +90,11 @@ public class ChatClient implements Runnable {
                 (byte) MessageType.GREETING.ordinal()};
         System.arraycopy(attachBuffer, 0, mBuffer, 0, attachBuffer.length);
         System.arraycopy(info.getBytes(), 0, mBuffer, 5, info.getBytes().length);
-        DatagramPacket attachPacket = new DatagramPacket(attachBuffer, attachBuffer.length, mServerAddress,
+        DatagramPacket attachPacket = new DatagramPacket(mBuffer, mBuffer.length, mServerAddress,
                 mServerPort);
         try {
             mSocket.send(attachPacket);
-          
+            System.out.println("Client sent out: " + new String(attachBuffer));
             
         } catch (IOException e) {
             mUserIO.logError("Error sending GREETING to server: " + e);
@@ -138,6 +139,8 @@ public class ChatClient implements Runnable {
             }
 
         }
+        
+       
     }
 
     public int getPort() {

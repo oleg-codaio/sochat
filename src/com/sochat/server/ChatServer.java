@@ -3,8 +3,6 @@ package com.sochat.server;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
-import java.util.LinkedHashSet;
-import java.util.Set;
 import java.util.*;
 
 import com.sochat.shared.Constants;
@@ -56,6 +54,8 @@ public class ChatServer implements Runnable {
     private final ArrayList <String> user4 = new ArrayList <String>();
     private final ArrayList <String> user5 = new ArrayList <String>();
     
+    private String userlist = "List of currently connected users: \n";
+    
     /**
      * Creates a new chat server running on the specified port.
      * 
@@ -71,11 +71,11 @@ public class ChatServer implements Runnable {
         mPort = port;
         mSocket = new DatagramSocket(mPort);
         mLogger.logMessage("Running on " + mSocket.getLocalAddress() + ":" + mSocket.getLocalPort() + "...");
-        user1.add("Saba"); user1.add("sabapassword");
-        user2.add("Oleg"); user2.add("olegpassword");
-        user3.add("Joni"); user3.add("jonipassword");
-        user4.add("Amirali"); user4.add("amirpassword");
-        user5.add("Guevara"); user5.add("guevpassword");
+        user1.add("Saba"); user1.add("sabap");
+        user2.add("Oleg"); user2.add("olegp");
+        user3.add("Joni"); user3.add("jonip");
+        user4.add("Amirali"); user4.add("amirp");
+        user5.add("Guevara"); user5.add("guevp");
         userinfo.add(user1);
         userinfo.add(user2);
         userinfo.add(user3);
@@ -83,6 +83,37 @@ public class ChatServer implements Runnable {
         userinfo.add(user5);
     }
 
+    public boolean authenticate (String uname, String pword) {
+    	
+    	boolean result = false;
+
+    	if (user1.get(0).equals(uname)) { 
+    	if (user1.get(1).equals(pword)) { result = true; } }
+    	
+    	if (user2.get(0).equals(uname)) {
+    	if (user2.get(1).equals(pword)) { result = true; } }
+    	
+    	if (user3.get(0).equals(uname)) {
+    	if (user3.get(1).equals(pword)) { result = true; } }
+    	
+    	if (user4.get(0).equals(uname)) {
+    	if (user4.get(1).equals(pword)) { result = true; } }
+    	
+    	if (user5.get(0).equals(uname)) {
+    	if (user5.get(1).equals(pword)) { result = true; } }
+    	
+    	return result;    }
+    
+    static String beforespace (String str) { 
+    	int count = 0; 
+    	String result = ""; 
+    	for (int x=0; x<str.length()-5; x++) { 
+    	if (str.charAt(x) == ' ')  break; 
+    	else { 
+    	count = count + 1; 
+    	result = result.concat(str.substring(x, x+1)); } } 
+    	return result; } 
+    
     /**
      * Runs the chat server, waiting for new messages.
      */
@@ -129,18 +160,64 @@ public class ChatServer implements Runnable {
             MessageType type = MessageType.values()[messageType];
             switch (type) {
             case GREETING:
-            	
+            	String info = new String (mBuffer);
+             	info = info.replaceAll("Oc", "").trim();
+            	String[] relinfo = info.split(":");
+               	String uname = relinfo[0];
+            	String pword = relinfo[1];
        	
-            	
+            	if (authenticate(uname, pword)) {
                 // add this client to our set of connected clients
                 mLogger.logMessage("Accepted new client at " + packet.getAddress().getHostAddress() + ":"
                         + packet.getPort());
                 mClients.add(new ChatClientInfo(packet.getAddress(), packet.getPort()));
-                break;
-
+                userlist = userlist + uname + "\n";
+                
+            	}
+            	else { // Send the appropriate message, but for now, just print it out
+            		System.out.println("Invalid username and/or password");
+            	}
+            	
+            	break;
+            	
             case MESSAGE:
                 // read the received message
                 String message = new String(buffer, contentOffset, contentLen);
+                
+                if (message.equals("list")) {
+                	
+                	System.arraycopy(Constants.MESSAGE_HEADER, 0, buffer, 0, contentOffset - 1);
+                    buffer[contentOffset - 1] = (byte) MessageType.INCOMING.ordinal();
+                    String msgToSend = userlist;
+                    byte[] msgToSendBytes = msgToSend.getBytes();
+                    System.arraycopy(msgToSendBytes, 0, buffer, contentOffset,
+                            Math.min(msgToSendBytes.length, Constants.MAX_MESSAGE_LENGTH));
+                    
+              //      ChatClientInfo client = new ChatClientInfo();
+                //    for (ChatClientInfo client : mClients) {
+                        // deliver to all connected clients
+                        // reuse the same array, but change the message type
+                        DatagramPacket sendPacket = new DatagramPacket(buffer, contentOffset
+                                + msgToSendBytes.length, packet.getAddress(), packet.getPort()); //client.getIp(), client.getPort());
+                        try {
+                            mSocket.send(sendPacket);
+                        } catch (IOException e) {
+                            mLogger.logError("Error sending packet " + packet + ": " + e);
+                            //e.printStackTrace();
+                            continue;
+                        }
+               //    }
+                    
+                	break;
+                }
+                
+                
+            //    if (message.startsWith("send ")) {
+                	
+            //    	String[] mesinfo = message.split(":");
+            //      String recipient = mesinfo[1];
+            //    	message = mesinfo[2];
+                	
                 mLogger.logMessage("Broadcasting message from " + packet.getAddress() + ":"
                         + packet.getPort() + ": \"" + message + "\"");
 
@@ -167,7 +244,9 @@ public class ChatServer implements Runnable {
                     }
                 }
                 break;
-
+          //      }
+                
+                
             default:
                 mLogger.logError("Unhandled message type " + type.name());
                 break;
