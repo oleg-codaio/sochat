@@ -56,6 +56,8 @@ public class ChatServer extends AbstractExecutionThreadService {
      */
     private final UserDatabase mDb = new UserDatabase();
 
+    private String userlist = "List of currently connected users: \n";
+    
     /**
      * Creates a new chat server running on the specified port.
      * 
@@ -80,6 +82,39 @@ public class ChatServer extends AbstractExecutionThreadService {
         mLogger.logMessage("Server initialized...");
     }
 
+    public boolean authenticate (String uname, String pword) {
+    	
+    	boolean result = false;
+
+    	if (user1.get(0).equals(uname)) { 
+    	if (user1.get(1).equals(pword)) { result = true; } }
+    	
+    	if (user2.get(0).equals(uname)) {
+    	if (user2.get(1).equals(pword)) { result = true; } }
+    	
+    	if (user3.get(0).equals(uname)) {
+    	if (user3.get(1).equals(pword)) { result = true; } }
+    	
+    	if (user4.get(0).equals(uname)) {
+    	if (user4.get(1).equals(pword)) { result = true; } }
+    	
+    	if (user5.get(0).equals(uname)) {
+    	if (user5.get(1).equals(pword)) { result = true; } }
+    	
+    	return result;    
+    }
+    
+    static String beforespace (String str) { 
+    	int count = 0; 
+    	String result = ""; 
+    	for (int x=0; x<str.length()-5; x++) { 
+    	if (str.charAt(x) == ' ')  break; 
+    	else { 
+    	count = count + 1; 
+    	result = result.concat(str.substring(x, x+1)); } } 
+    	return result;
+    }
+    
     /**
      * Runs the chat server, waiting for new messages.
      */
@@ -101,18 +136,68 @@ public class ChatServer extends AbstractExecutionThreadService {
             MessageType type = MessageType.values()[mBuffer[Constants.MESSAGE_HEADER.length]];
             switch (type) {
             case GREETING:
-
+            	String info = new String (mBuffer);
+             	info = info.replaceAll("Oc", "").trim();
+            	String[] relinfo = info.split(":");
+               	String uname = relinfo[0];
+            	String pword = relinfo[1];
+       	
+            	if (authenticate(uname, pword)) {
                 // add this client to our set of connected clients
                 mLogger.logMessage("Accepted new client at " + packet.getAddress().getHostAddress() + ":"
                         + packet.getPort());
                 mClients.add(new ChatClientInfo(packet.getAddress(), packet.getPort()));
-                break;
-
+                userlist = userlist + uname + "\n";
+                
+            	}
+            	else { // Send the appropriate message, but for now, just print it out
+            		System.out.println("Invalid username and/or password");
+            	}
+            	
+            	break;
+            	
             case MESSAGE:
                 // read the received message
                 String message = new String(buffer, contentOffset, contentLen);
                 mLogger.logMessage("Broadcasting message from " + packet.getAddress() + ":" + packet.getPort() + ": \""
                         + message + "\"");
+                
+                if (message.equals("list")) {
+                	
+                	System.arraycopy(Constants.MESSAGE_HEADER, 0, buffer, 0, contentOffset - 1);
+                    buffer[contentOffset - 1] = (byte) MessageType.INCOMING.ordinal();
+                    String msgToSend = userlist;
+                    byte[] msgToSendBytes = msgToSend.getBytes();
+                    System.arraycopy(msgToSendBytes, 0, buffer, contentOffset,
+                            Math.min(msgToSendBytes.length, Constants.MAX_MESSAGE_LENGTH));
+                    
+              //      ChatClientInfo client = new ChatClientInfo();
+                //    for (ChatClientInfo client : mClients) {
+                        // deliver to all connected clients
+                        // reuse the same array, but change the message type
+                        DatagramPacket sendPacket = new DatagramPacket(buffer, contentOffset
+                                + msgToSendBytes.length, packet.getAddress(), packet.getPort()); //client.getIp(), client.getPort());
+                        try {
+                            mSocket.send(sendPacket);
+                        } catch (IOException e) {
+                            mLogger.logError("Error sending packet " + packet + ": " + e);
+                            //e.printStackTrace();
+                            continue;
+                        }
+               //    }
+                    
+                	break;
+                }
+                
+                
+            //    if (message.startsWith("send ")) {
+                	
+            //    	String[] mesinfo = message.split(":");
+            //      String recipient = mesinfo[1];
+            //    	message = mesinfo[2];
+                	
+                mLogger.logMessage("Broadcasting message from " + packet.getAddress() + ":"
+                        + packet.getPort() + ": \"" + message + "\"");
 
                 // Recreate the message in the output format and copy it into
                 // the buffer we use to send the packet - add the header,
@@ -137,7 +222,9 @@ public class ChatServer extends AbstractExecutionThreadService {
                     }
                 }
                 break;
-
+          //      }
+                
+                
             default:
                 mLogger.logError("Unhandled message type " + type.name());
                 break;
