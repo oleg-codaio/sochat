@@ -3,24 +3,32 @@ package com.sochat.server;
 import java.io.IOException;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
-import java.util.LinkedHashSet;
-import java.util.Set;
-import java.util.*;
+import java.security.GeneralSecurityException;
+import java.security.PrivateKey;
 
+import com.google.common.util.concurrent.AbstractExecutionThreadService;
+import com.sochat.server.db.UserDatabase;
 import com.sochat.shared.Constants;
-import com.sochat.shared.StandardUserIO;
-import com.sochat.shared.UserIO;
-import com.sochat.shared.Utils;
 import com.sochat.shared.Constants.MessageType;
+import com.sochat.shared.Utils;
+import com.sochat.shared.io.StandardUserIO;
+import com.sochat.shared.io.UserIO;
 
 /**
- * Class that contains the chat server, which can receive GREETING messages from
- * a theoretically unlimited number of clients as well as broadcast messages
- * sent from individual chat clients to all the other connected chat clients.
+ * Class that contains the chat server, which is responsible for containing the
+ * list of credentials for valid users.
+ * 
+ * Note that for the specifications of this project, this server keeps its
+ * "database" in memory. If the server is restarted then its state will be lost.
  * 
  * @author Oleg, Saba
  */
-public class ChatServer implements Runnable {
+public class ChatServer extends AbstractExecutionThreadService {
+
+    /**
+     * The server's private key.
+     */
+    private final PrivateKey mPrivateKey;
 
     /**
      * The socket the server uses to listen for a particular port.
@@ -38,24 +46,16 @@ public class ChatServer implements Runnable {
     private final byte[] mBuffer = new byte[Constants.MAX_MESSAGE_LENGTH];
 
     /**
-     * Use a LinkedHashSet to keep track of connected clients, because we don't
-     * want duplicates and we want to be able to iterate over the set in order
-     * to broadcast messages.
-     */
-    private final Set<ChatClientInfo> mClients = new LinkedHashSet<ChatClientInfo>();
-
-    /**
-     * The logger this server will use to print messages.
+     * The logger this server will use to print messages (or save somewhere for
+     * unit tests).
      */
     private final UserIO mLogger;
-    
-    private final ArrayList<ArrayList<String>> userinfo = new ArrayList<ArrayList<String>>();
-    private final ArrayList <String> user1 = new ArrayList <String>();
-    private final ArrayList <String> user2 = new ArrayList <String>();
-    private final ArrayList <String> user3 = new ArrayList <String>();
-    private final ArrayList <String> user4 = new ArrayList <String>();
-    private final ArrayList <String> user5 = new ArrayList <String>();
-    
+
+    /**
+     * Our user database.
+     */
+    private final UserDatabase mDb = new UserDatabase();
+
     /**
      * Creates a new chat server running on the specified port.
      * 
@@ -64,74 +64,44 @@ public class ChatServer implements Runnable {
      *            the logger to use to save messages
      * @throws IOException
      *             Thrown if there was an issue connecting to the socket.
+     * @throws GeneralSecurityException
      */
-    public ChatServer(int port, UserIO logger) throws IOException {
+    public ChatServer(int port, UserIO logger) throws IOException, GeneralSecurityException {
+        mPrivateKey = ServerPrivateKey.getServerPrivateKey();
         mLogger = logger;
-        mLogger.logMessage("Starting ChatServer...");
         mPort = port;
         mSocket = new DatagramSocket(mPort);
+    }
+
+    @Override
+    protected void startUp() throws Exception {
+        mLogger.logMessage("Starting SOChat Server...");
         mLogger.logMessage("Running on " + mSocket.getLocalAddress() + ":" + mSocket.getLocalPort() + "...");
-        user1.add("Saba"); user1.add("sabapassword");
-        user2.add("Oleg"); user2.add("olegpassword");
-        user3.add("Joni"); user3.add("jonipassword");
-        user4.add("Amirali"); user4.add("amirpassword");
-        user5.add("Guevara"); user5.add("guevpassword");
-        userinfo.add(user1);
-        userinfo.add(user2);
-        userinfo.add(user3);
-        userinfo.add(user4);
-        userinfo.add(user5);
+        mLogger.logMessage("Server initialized...");
     }
 
     /**
      * Runs the chat server, waiting for new messages.
      */
     public void run() {
-        mLogger.logMessage("Server initialized...");
-
         // wait for data on the UDP socket
-        while (true) {
+        while (isRunning()) {
             DatagramPacket packet = new DatagramPacket(mBuffer, mBuffer.length);
             try {
                 mSocket.receive(packet);
             } catch (IOException e) {
                 mLogger.logError("Error receiving packet " + packet + ": " + e);
-                //e.printStackTrace();
                 continue;
             }
 
-            int len = packet.getLength();
-            byte[] buffer = packet.getData();
-
-            int contentOffset = Constants.MESSAGE_HEADER.length + 1;
-            int contentLen = packet.getLength() - contentOffset;
-
-            // check that the length seems valid (header + message type byte)
-            if (len < Constants.MESSAGE_HEADER.length + 1) {
-                mLogger.logMessage("Invalid message received.");
+            if (!Utils.verifyPacketValid(packet, mLogger))
                 continue;
-            }
-
-            // check that version matches
-            if (!Utils.arrayEquals(Constants.MESSAGE_HEADER, 0, buffer, 0, Constants.MESSAGE_HEADER.length)) {
-                mLogger.logMessage("Packet received is not a Chat packet or is from an old version.");
-                continue;
-            }
-
-            // the next byte contains the message type
-            byte messageType = buffer[contentOffset - 1];
-            if (messageType < 0 || messageType >= MessageType.values().length) {
-                mLogger.logMessage("Invalid message type " + messageType);
-                continue;
-            }
 
             // parse the message depending on its type
-            MessageType type = MessageType.values()[messageType];
+            MessageType type = MessageType.values()[mBuffer[Constants.MESSAGE_HEADER.length]];
             switch (type) {
             case GREETING:
-            	
-       	
-            	
+
                 // add this client to our set of connected clients
                 mLogger.logMessage("Accepted new client at " + packet.getAddress().getHostAddress() + ":"
                         + packet.getPort());
@@ -141,8 +111,8 @@ public class ChatServer implements Runnable {
             case MESSAGE:
                 // read the received message
                 String message = new String(buffer, contentOffset, contentLen);
-                mLogger.logMessage("Broadcasting message from " + packet.getAddress() + ":"
-                        + packet.getPort() + ": \"" + message + "\"");
+                mLogger.logMessage("Broadcasting message from " + packet.getAddress() + ":" + packet.getPort() + ": \""
+                        + message + "\"");
 
                 // Recreate the message in the output format and copy it into
                 // the buffer we use to send the packet - add the header,
@@ -156,13 +126,13 @@ public class ChatServer implements Runnable {
                 for (ChatClientInfo client : mClients) {
                     // deliver to all connected clients
                     // reuse the same array, but change the message type
-                    DatagramPacket sendPacket = new DatagramPacket(buffer, contentOffset
-                            + msgToSendBytes.length, client.getIp(), client.getPort());
+                    DatagramPacket sendPacket = new DatagramPacket(buffer, contentOffset + msgToSendBytes.length,
+                            client.getIp(), client.getPort());
                     try {
                         mSocket.send(sendPacket);
                     } catch (IOException e) {
                         mLogger.logError("Error sending packet " + packet + ": " + e);
-                        //e.printStackTrace();
+                        // e.printStackTrace();
                         continue;
                     }
                 }
@@ -175,16 +145,13 @@ public class ChatServer implements Runnable {
         }
     }
 
-    public int getPort() {
-        return mPort;
-    }
-
-    public void stop() {
+    @Override
+    protected void shutDown() throws Exception {
+        mLogger.logMessage("Shutting down SOChat server.");
         mSocket.close();
     }
 
     public static void main(String args[]) {
-
         if (args.length != 1) {
             printUsage();
             return;
@@ -200,7 +167,7 @@ public class ChatServer implements Runnable {
         ChatServer server;
         try {
             server = new ChatServer(port, new StandardUserIO());
-            server.run();
+            server.startAsync();
         } catch (IOException | SecurityException e) {
             System.err.println("ChatServer encountered an error! Exiting.");
             e.printStackTrace();
@@ -208,9 +175,8 @@ public class ChatServer implements Runnable {
     }
 
     private static void printUsage() {
-    	  System.out.println("SOChat, by Oleg and Saba for CS4740 final project\n\n"
-                  + "usage: java SOChatServer serverPort\n\n"
-                  + "Report bugs to me@olegvaskevich.com.");
+        System.out.println("SOChat, by Oleg and Saba for CS4740 final project\n\n"
+                + "usage: java -jar SOChatServer.jar serverPort\n\n" + "Report bugs to oleg@foobox.com.");
     }
 
 }

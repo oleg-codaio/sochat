@@ -1,4 +1,4 @@
-package com.sochat.shared;
+package com.sochat.shared.io;
 
 import java.io.BufferedReader;
 import java.io.IOException;

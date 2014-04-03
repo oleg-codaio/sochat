@@ -1,5 +1,10 @@
 package com.sochat.shared;
 
+import java.awt.TrayIcon.MessageType;
+import java.net.DatagramPacket;
+
+import com.sochat.shared.io.UserIO;
+
 public class Utils {
 
     /**
@@ -22,6 +27,32 @@ public class Utils {
             if (a1[o1 + i] != a2[o2 + i])
                 return false;
         }
+        return true;
+    }
+
+    public static boolean verifyPacketValid(DatagramPacket packet, UserIO mLogger) {
+        int len = packet.getLength();
+        byte[] buffer = packet.getData();
+
+        // check that the length seems valid (header + message type byte)
+        if (len < Constants.MESSAGE_HEADER.length + 1) {
+            mLogger.logMessage("Invalid message received.");
+            return false;
+        }
+
+        // check that version matches
+        if (!Utils.arrayEquals(Constants.MESSAGE_HEADER, 0, buffer, 0, Constants.MESSAGE_HEADER.length)) {
+            mLogger.logMessage("Packet received is not a Chat packet or is from an old version.");
+            return false;
+        }
+
+        // the next byte contains the message type
+        byte messageType = buffer[Constants.MESSAGE_HEADER.length];
+        if (messageType < 0 || messageType >= MessageType.values().length) {
+            mLogger.logMessage("Invalid message type " + messageType);
+            return false;
+        }
+
         return true;
     }
 

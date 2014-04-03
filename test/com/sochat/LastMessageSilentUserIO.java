@@ -3,7 +3,7 @@ package com.sochat;
 import java.io.IOException;
 import java.util.concurrent.SynchronousQueue;
 
-import com.sochat.shared.UserIO;
+import com.sochat.shared.io.UserIO;
 
 /**
  * Logger that records the last message logged so that we can check it in a unit

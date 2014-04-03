@@ -9,10 +9,10 @@ public final class Constants {
 
     /**
      * In addition to the IP header and UDP header, each packet also contains a
-     * 4-byte message header containing 2 constant bytes and 2 version bytes.
-     * This should never be changed!
+     * 4-byte message header containing 6 constant bytes and 2 version bytes.
+     * This format should never be changed for compatibility reasons!
      */
-    public static final byte[] MESSAGE_HEADER = { 'O', 'c', VERSION & 0xff, (VERSION >> 8) & 0xff };
+    public static final byte[] MESSAGE_HEADER = { 'S', 'O', 'C', 'h', 'a', 't', VERSION & 0xff, (VERSION >> 8) & 0xff };
 
     /**
      * Limit the size of messages to this number of bytes.
@@ -25,7 +25,8 @@ public final class Constants {
      * payload.
      */
     public enum MessageType {
-        GREETING, MESSAGE, INCOMING
+        CS_AUTH1, // C -> S 
+        MESSAGE, INCOMING
     }
 
 }
