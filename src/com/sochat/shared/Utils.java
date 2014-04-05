@@ -1,8 +1,8 @@
 package com.sochat.shared;
 
-import java.awt.TrayIcon.MessageType;
 import java.net.DatagramPacket;
 
+import com.sochat.shared.Constants.MessageType;
 import com.sochat.shared.io.UserIO;
 
 public class Utils {
@@ -48,12 +48,20 @@ public class Utils {
 
         // the next byte contains the message type
         byte messageType = buffer[Constants.MESSAGE_HEADER.length];
-        if (messageType < 0 || messageType >= MessageType.values().length) {
+        if (messageType < 0 || MessageType.fromId(messageType) == MessageType.UNKNOWN) {
             mLogger.logMessage("Invalid message type " + messageType);
             return false;
         }
 
         return true;
+    }
+
+    public static byte[] getHeaderForMessageType(MessageType type) {
+        byte[] messageHeader = new byte[Constants.MESSAGE_HEADER.length + 1];
+        System.arraycopy(Constants.MESSAGE_HEADER, 0, messageHeader, 0, Constants.MESSAGE_HEADER.length);
+        messageHeader[messageHeader.length - 1] = type.getId();
+
+        return messageHeader;
     }
 
 }

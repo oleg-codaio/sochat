@@ -27,4 +27,8 @@ public abstract class UserInfo {
         this.lastAddr = lastAddr;
     }
 
+    public void clearLastAddress() {
+        lastAddr = null;
+    }
+
 }

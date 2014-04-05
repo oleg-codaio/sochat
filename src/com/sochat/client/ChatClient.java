@@ -1,17 +1,27 @@
 package com.sochat.client;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.util.Scanner;
+import java.security.GeneralSecurityException;
+import java.security.PublicKey;
+
+import javax.crypto.SecretKey;
+import javax.xml.bind.DatatypeConverter;
+
+import org.apache.commons.lang3.tuple.Pair;
 
 import com.sochat.shared.Constants;
 import com.sochat.shared.Constants.MessageType;
+import com.sochat.shared.CryptoUtils;
+import com.sochat.shared.Utils;
 import com.sochat.shared.io.StandardUserIO;
 import com.sochat.shared.io.UserIO;
-import com.sochat.shared.Utils;
+import com.sun.xml.internal.messaging.saaj.util.Base64;
 
 /**
  * Class that contains the chat client, which can send the GREETING message to
@@ -22,6 +32,8 @@ import com.sochat.shared.Utils;
  */
 public class ChatClient implements Runnable {
 
+    private final PublicKey mServerKey;
+
     /**
      * The socket the client uses to listen for a particular port and dispatch
      * messages.
@@ -31,12 +43,7 @@ public class ChatClient implements Runnable {
     /**
      * The address on which the server is running.
      */
-    private final InetAddress mServerAddress;
-
-    /**
-     * The port to which this client will connect.
-     */
-    private final int mServerPort;
+    private final InetSocketAddress mServerAddress;
 
     /**
      * Create a buffer that will be used for sending/receiving UDP packets.
@@ -46,7 +53,14 @@ public class ChatClient implements Runnable {
     /**
      * The logger this server will use to print messages.
      */
-    private final UserIO mUserIO;
+    private final UserIO mUserIo;
+
+    private final ClientInputReader mInput;
+
+    /**
+     * Contains various cryptographic utilities.
+     */
+    private final CryptoUtils mCrypto = new CryptoUtils();
 
     /**
      * Creates a new chat client running on the specified port.
@@ -54,93 +68,104 @@ public class ChatClient implements Runnable {
      * @param port
      * @throws IOException
      *             Thrown if there was an issue connecting to the socket.
+     * @throws GeneralSecurityException
      */
-    public ChatClient(InetAddress serverAddress, int serverPort, UserIO logger) throws IOException {
-        mUserIO = logger;
-        mUserIO.logMessage("Starting ChatClient...");
-        mServerAddress = serverAddress;
-        mServerPort = serverPort;
+    public ChatClient(InetAddress serverAddress, int serverPort, UserIO logger) throws IOException,
+            GeneralSecurityException {
+        mUserIo = logger;
+        mInput = new ClientInputReader(mUserIo);
+        mServerKey = ServerPublicKey.getServerPublicKey();
+
+        mUserIo.logMessage("Starting ChatClient...");
+        mServerAddress = new InetSocketAddress(serverAddress, serverPort);
         mSocket = new DatagramSocket(); // bind to wildcard port
-        mUserIO.logMessage("Listening on port " + mSocket.getLocalPort() + "...");
+        mUserIo.logMessage("Listening on port " + mSocket.getLocalPort() + "...");
     }
 
-  /**
-   * Runs the chat client, spawning child worker thread for each connection
-   * and processing new messages.
-   */
-  public void run() {
-    // start listener thread
-    new PrintReceivedMessagesThread().start();
+    /**
+     * Runs the chat client, spawning child worker thread for each connection
+     * and processing new messages.
+     */
+    public void run() {
+        // start listener thread
+        new ProcessReceivedMessagesThread().start();
 
-    // Console cons = System.console();
-    String username;
-    String password;
-    Scanner scanner = new Scanner(System.in);
-    System.out.print("Enter your username: ");
-    username = scanner.nextLine();
-    System.out.print("Enter your password: ");
-    password = scanner.nextLine();
-    String info = username + ":" + password;
-    scanner.close();
+        // start of authentication protocol
+        try {
+            Pair<String, String> credentials = mInput.readCredentials();
+            if (credentials == null) {
+                return;
+            }
 
-    // send GREETING to server
-    mUserIO.logMessage("Attaching to server " + mServerAddress + ":"
-        + mServerPort + "...");
-    byte[] attachBuffer = { Constants.MESSAGE_HEADER[0],
-        Constants.MESSAGE_HEADER[1], Constants.MESSAGE_HEADER[2],
-        Constants.MESSAGE_HEADER[3],
-        (byte) MessageType.GREETING.ordinal() };
-    System.arraycopy(attachBuffer, 0, mBuffer, 0, attachBuffer.length);
-    System.arraycopy(info.getBytes(), 0, mBuffer, 5, info.getBytes().length);
-    DatagramPacket attachPacket = new DatagramPacket(attachBuffer,
-        attachBuffer.length, mServerAddress, mServerPort);
-    try {
-      mSocket.send(attachPacket);
-      System.out.println("packet: " + new String(mBuffer));
-    } catch (IOException e) {
-      mUserIO.logError("Error sending GREETING to server: " + e);
-      // e.printStackTrace();
-      return;
+            initAuth(credentials.getLeft(), credentials.getRight());
+        } catch (IOException e1) {
+            e1.printStackTrace();
+        }
+
+        mUserIo.logMessage("Client initialized! Type a message and press enter to send it to the server.");
+
+        // wait for user to enter text, then send it to the server
+        while (true) {
+            // create a new MESSAGE message with the user's text
+            // mLogger.logMessage("> "); // don't use this for now
+            try {
+                String line = mUserIo.readLineBlocking().trim();
+            } catch (IOException e) {
+                mUserIo.logError("Error sending MESSAGE to server: " + e);
+                // e.printStackTrace();
+                continue;
+            }
+        }
     }
 
-    mUserIO.logMessage("Client initialized! Type a message and press enter to send it to the server.");
+    private void initAuth(String username, String password) throws IOException {
+        // generate our symmetric key and random number
+        SecretKey key = mCrypto.generateSecretKey();
+        String keyBase64 = DatatypeConverter.printBase64Binary(key.getEncoded());
+        BigInteger r = mCrypto.generateRandom();
+        String rStr = r.toString(16);
 
-    // wait for user to enter text, then send it to the server
-    String line;
-    while (true) {
-      // create a new MESSAGE message with the user's text
-      // mLogger.logMessage("> "); // don't use this for now
-      try {
-        line = mUserIO.readLineBlocking().trim();
-      } catch (IOException e) {
-        mUserIO.logError("Error sending MESSAGE to server: " + e);
-        // e.printStackTrace();
-        continue;
-      }
-      byte lineBytes[] = line.getBytes();
-      int contentOffset = Constants.MESSAGE_HEADER.length + 1;
-      if (lineBytes.length >= lineBytes.length + contentOffset) {
-        mUserIO.logMessage("ERROR: Message not sent because it is too long.");
-        continue;
-      }
-      // add the header, message type, then the message
-      System.arraycopy(Constants.MESSAGE_HEADER, 0, mBuffer, 0,
-          contentOffset - 1);
-      mBuffer[contentOffset - 1] = (byte) MessageType.MESSAGE.ordinal();
-      System.arraycopy(lineBytes, 0, mBuffer, contentOffset,
-          lineBytes.length);
+        // concatenate message
+        StringBuilder b = new StringBuilder();
+        b.append(username);
+        b.append("::");
+        b.append(rStr);
+        b.append("::");
+        b.append(keyBase64);
+        String info = b.toString();
 
-      // send it!
-      DatagramPacket packet = new DatagramPacket(mBuffer, contentOffset
-          + lineBytes.length, mServerAddress, mServerPort);
-      try {
-        mSocket.send(packet);
-      } catch (IOException e) {
-        mUserIO.logError("Error sending packet " + packet + ": " + e);
-        // e.printStackTrace();
-        continue;
-      }
-  }
+        mUserIo.logDebug("message1 = " + info);
+
+        // encrypt with server public key
+        byte[] encrypted = mCrypto.encryptData(info, mServerKey);
+
+        // create header
+        byte[] messageHeader = Utils.getHeaderForMessageType(MessageType.CS_AUTH1);
+
+        // copy header and encrypted message into our buffer
+        System.arraycopy(messageHeader, 0, mBuffer, 0, messageHeader.length);
+        // copy the encrypted message
+        System.arraycopy(encrypted, 0, mBuffer, messageHeader.length, encrypted.length);
+
+        int len = messageHeader.length + encrypted.length;
+        
+        mUserIo.logDebug("Sent length is: " + len);
+
+        // send!
+        sendCurrentBufferAsPacket(len);
+    }
+
+    public boolean sendCurrentBufferAsPacket(int length) {
+        try {
+            DatagramPacket attachPacket = new DatagramPacket(mBuffer, length, mServerAddress);
+            mSocket.send(attachPacket);
+            mUserIo.logDebug("sending packet: " + new String(DatatypeConverter.printBase64Binary(mBuffer)));
+            return true;
+        } catch (IOException e) {
+            mUserIo.logError("Error sending packet: " + e);
+            return false;
+        }
+    }
 
     public int getPort() {
         return mSocket.getLocalPort();
@@ -154,7 +179,7 @@ public class ChatClient implements Runnable {
      * Thread that asynchronously receives messages from the socket and prints
      * them on the screen.
      */
-    private class PrintReceivedMessagesThread extends Thread {
+    private class ProcessReceivedMessagesThread extends Thread {
 
         @Override
         public void run() {
@@ -163,7 +188,7 @@ public class ChatClient implements Runnable {
                 try {
                     mSocket.receive(packet);
                 } catch (IOException e) {
-                    mUserIO.logError("Error receiving packet " + packet + ": " + e);
+                    mUserIo.logError("Error receiving packet " + packet + ": " + e);
                     // e.printStackTrace();
                     continue;
                 }
@@ -177,35 +202,34 @@ public class ChatClient implements Runnable {
                 // check that the length seems valid (header + message type
                 // byte)
                 if (len < Constants.MESSAGE_HEADER.length + 1) {
-                    mUserIO.logMessage("Invalid message received.");
+                    mUserIo.logMessage("Invalid message received.");
                     continue;
                 }
 
                 // check that version matches
-                if (!Utils.arrayEquals(Constants.MESSAGE_HEADER, 0, buffer, 0,
-                        Constants.MESSAGE_HEADER.length)) {
-                    mUserIO.logMessage("Packet received is not a Chat packet or is from an old version.");
+                if (!Utils.arrayEquals(Constants.MESSAGE_HEADER, 0, buffer, 0, Constants.MESSAGE_HEADER.length)) {
+                    mUserIo.logMessage("Packet received is not a Chat packet or is from an old version.");
                     continue;
                 }
 
                 // the next byte contains the message type
                 byte messageType = buffer[contentOffset - 1];
                 if (messageType < 0 || messageType >= MessageType.values().length) {
-                    mUserIO.logMessage("Invalid message type " + messageType);
+                    mUserIo.logMessage("Invalid message type " + messageType);
                     continue;
                 }
 
                 // parse the message depending on its type
                 MessageType type = MessageType.values()[messageType];
                 switch (type) {
-                case INCOMING:
+                case CS_AUTH2:
                     // print the incoming message
                     String msg = new String(packet.getData(), contentOffset, contentLen);
-                    mUserIO.logMessage(msg);
+                    mUserIo.logMessage(msg);
                     break;
 
                 default:
-                    mUserIO.logMessage("Unhandled message type " + type.name());
+                    mUserIo.logMessage("Unhandled message type " + type.name());
                     break;
                 }
             }
@@ -233,11 +257,11 @@ public class ChatClient implements Runnable {
             return;
         }
 
-        ChatClient server;
+        ChatClient client;
         try {
-            server = new ChatClient(serverAddress, serverPort, new StandardUserIO());
-            server.run();
-        } catch (IOException | SecurityException e) {
+            client = new ChatClient(serverAddress, serverPort, new StandardUserIO());
+            client.run();
+        } catch (IOException | SecurityException | GeneralSecurityException e) {
             System.err.println("ChatClient encountered an error! Exiting.");
             e.printStackTrace();
         }
@@ -245,8 +269,7 @@ public class ChatClient implements Runnable {
 
     private static void printUsage() {
         System.out.println("SOChat, by Oleg and Saba for CS4740 final project\n\n"
-                + "usage: java SOChat serverIpAddress serverPort\n\n"
-                + "Report bugs to me@olegvaskevich.com.");
+                + "usage: java SOChat serverIpAddress serverPort\n\n" + "Report bugs to me@olegvaskevich.com.");
     }
 
 }

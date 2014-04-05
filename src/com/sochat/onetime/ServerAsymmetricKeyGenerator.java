@@ -25,7 +25,7 @@ public class ServerAsymmetricKeyGenerator {
         // generate key pair
         KeyPairGenerator gen = KeyPairGenerator.getInstance("RSA");
         KeyFactory factory = KeyFactory.getInstance("RSA");
-        gen.initialize(1024);
+        gen.initialize(2048);
         KeyPair pair = gen.generateKeyPair();
 
         // get public keys

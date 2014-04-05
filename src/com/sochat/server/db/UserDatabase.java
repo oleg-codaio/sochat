@@ -14,12 +14,12 @@ public class UserDatabase {
     /**
      * Username <-> User info
      */
-    private HashMap<String, ServerUserInfo> mUsersByUsername;
+    private HashMap<String, ServerUserInfo> mUsersByUsername = new HashMap<>();
 
     /**
      * Socket address <-> User info
      */
-    private HashMap<InetSocketAddress, ServerUserInfo> mUsersByAddress;
+    private HashMap<InetSocketAddress, ServerUserInfo> mUsersByAddress = new HashMap<>();
 
     public UserDatabase() {
         // initialize with default entries
@@ -53,6 +53,14 @@ public class UserDatabase {
         mUsersByAddress.put(address, info);
     }
 
+    public void clearUserAddress(String username) {
+        if (!mUsersByAddress.containsKey(username))
+            throw new IllegalArgumentException("Username does not exist in server DB.");
+        mUsersByAddress.remove(mUsersByAddress.get(username));
+        ServerUserInfo info = mUsersByUsername.get(username);
+        info.clearLastAddress();
+    }
+
     /**
      * Returns the username associated with a given socket address.
      * 
@@ -73,5 +81,4 @@ public class UserDatabase {
     public boolean isUserConnected(String username) {
         return mUsersByAddress.containsKey(username);
     }
-
 }
