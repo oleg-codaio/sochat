@@ -35,7 +35,8 @@ public final class Constants {
 
         /* BEGIN server commands */
         CMD_LIST(20), // list users
-        CMD_LOGOUT(21), // logout from server/user
+        CMD_LIST_RESPONSE(21), // list response
+        // CMD_LOGOUT(22), // logout from server/user
 
         /* BEGIN client-client authentication */
         CC_AUTH1(30), // TODO: do CC authentication

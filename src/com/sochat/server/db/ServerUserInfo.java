@@ -1,5 +1,7 @@
 package com.sochat.server.db;
 
+import javax.crypto.SecretKey;
+
 import com.sochat.shared.UserInfo;
 
 /**
@@ -9,6 +11,14 @@ import com.sochat.shared.UserInfo;
 class ServerUserInfo extends UserInfo {
 
     private String passwordHash;
+
+    /**
+     * Session key - this will be forgotten when the user logs out or server
+     * shuts down.
+     */
+    private SecretKey c1Sym;
+
+    private boolean isAuthenticated = false;
 
     public static ServerUserInfo create(String username, String password) {
         ServerUserInfo info = new ServerUserInfo(username);
@@ -28,6 +38,27 @@ class ServerUserInfo extends UserInfo {
 
     public void setPasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
+    }
+
+    public boolean isConnected() {
+        return getAddress() != null;
+    }
+
+    public boolean isAuthenticated() {
+        return isAuthenticated;
+    }
+
+    public void setAuthenticated(boolean authenticated) {
+        isAuthenticated = authenticated;
+    }
+
+    public SecretKey getC1Sym() {
+        return c1Sym;
+
+    }
+
+    public void setC1Sym(SecretKey c1Sym) {
+        this.c1Sym = c1Sym;
     }
 
 }

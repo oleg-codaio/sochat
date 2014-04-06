@@ -31,7 +31,7 @@ public class ClientInputReader {
                 return null;
             }
 
-            System.out.print("Enter your password: ");
+            mIo.logMessage("Enter your password: ");
             password = mIo.readLineBlocking();
         } catch (IOException e) {
             mIo.logError(e.toString());

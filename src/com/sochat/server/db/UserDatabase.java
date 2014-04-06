@@ -1,7 +1,11 @@
 package com.sochat.server.db;
 
-import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.util.HashMap;
+
+import javax.crypto.SecretKey;
+
+import com.sochat.shared.SoChatException;
 
 /**
  * Class that emulates an in-memory database that contains user credentials as
@@ -19,7 +23,7 @@ public class UserDatabase {
     /**
      * Socket address <-> User info
      */
-    private HashMap<InetSocketAddress, ServerUserInfo> mUsersByAddress = new HashMap<>();
+    private HashMap<SocketAddress, ServerUserInfo> mUsersByAddress = new HashMap<>();
 
     public UserDatabase() {
         // initialize with default entries
@@ -45,8 +49,8 @@ public class UserDatabase {
      * @param username
      * @param address
      */
-    public void addUserAddress(String username, InetSocketAddress address) {
-        if (!mUsersByAddress.containsKey(username))
+    public void addUserAddress(String username, SocketAddress address) {
+        if (!mUsersByUsername.containsKey(username))
             throw new IllegalArgumentException("Username does not exist in server DB.");
         ServerUserInfo info = mUsersByUsername.get(username);
         info.setLastAddress(address);
@@ -58,7 +62,11 @@ public class UserDatabase {
             throw new IllegalArgumentException("Username does not exist in server DB.");
         mUsersByAddress.remove(mUsersByAddress.get(username));
         ServerUserInfo info = mUsersByUsername.get(username);
-        info.clearLastAddress();
+        info.clearAddress();
+    }
+
+    public boolean existsUser(String username) {
+        return mUsersByUsername.containsKey(username);
     }
 
     /**
@@ -67,7 +75,7 @@ public class UserDatabase {
      * @param address
      * @return
      */
-    public String getUsernameByAddress(InetSocketAddress address) {
+    public String getUsernameByAddress(SocketAddress address) {
         ServerUserInfo info = mUsersByAddress.get(address);
         return info == null ? null : info.getUsername();
     }
@@ -80,5 +88,43 @@ public class UserDatabase {
      */
     public boolean isUserConnected(String username) {
         return mUsersByAddress.containsKey(username);
+    }
+
+    public boolean isUserAuthenticated(String username) {
+        ServerUserInfo u = mUsersByUsername.get(username);
+        return (u != null && u.getC1Sym() != null && u.isAuthenticated());
+    }
+
+    public void setUserAuthenticated(String username, boolean authenticated) throws SoChatException {
+        ServerUserInfo u = mUsersByUsername.get(username);
+        if (u == null)
+            throw new SoChatException("No such user " + username + " in database.");
+
+        u.setAuthenticated(true);
+    }
+
+    public String getListOfConnectedUsers() {
+        StringBuilder b = new StringBuilder();
+        for (ServerUserInfo s : mUsersByAddress.values()) {
+            if (s.isAuthenticated()) {
+                b.append(s.getUsername());
+                b.append('\n');
+            }
+        }
+        return b.toString();
+    }
+
+    public void setUserC1sym(String username, SecretKey c1sym) throws SoChatException {
+        ServerUserInfo s = mUsersByUsername.get(username);
+        if (s == null)
+            throw new SoChatException("No such user " + username + " in database when setting C1Sym.");
+        s.setC1Sym(c1sym);
+    }
+
+    public SecretKey getUserC1sym(String username) throws SoChatException {
+        ServerUserInfo s = mUsersByUsername.get(username);
+        if (s == null)
+            throw new SoChatException("No such user " + username + " in database when setting C1Sym.");
+        return s.getC1Sym();
     }
 }

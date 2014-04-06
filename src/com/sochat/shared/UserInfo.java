@@ -1,6 +1,6 @@
 package com.sochat.shared;
 
-import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 
 /**
  * Basic class that contains the basic user info: username and associated socket
@@ -9,7 +9,7 @@ import java.net.InetSocketAddress;
 public abstract class UserInfo {
 
     private final String username;
-    private InetSocketAddress lastAddr;
+    private SocketAddress addr;
 
     protected UserInfo(String username) {
         this.username = username;
@@ -19,16 +19,16 @@ public abstract class UserInfo {
         return username;
     }
 
-    public InetSocketAddress getLastAddress() {
-        return lastAddr;
+    public SocketAddress getAddress() {
+        return addr;
     }
 
-    public void setLastAddress(InetSocketAddress lastAddr) {
-        this.lastAddr = lastAddr;
+    public void setLastAddress(SocketAddress addr) {
+        this.addr = addr;
     }
 
-    public void clearLastAddress() {
-        lastAddr = null;
+    public void clearAddress() {
+        addr = null;
     }
 
 }

@@ -1,12 +1,21 @@
 package com.sochat.server;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
+import java.net.SocketAddress;
 import java.security.GeneralSecurityException;
+import java.security.InvalidKeyException;
+import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.util.Arrays;
 
+import javax.crypto.BadPaddingException;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import javax.xml.bind.DatatypeConverter;
 
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
@@ -14,6 +23,7 @@ import com.sochat.server.db.UserDatabase;
 import com.sochat.shared.Constants;
 import com.sochat.shared.Constants.MessageType;
 import com.sochat.shared.CryptoUtils;
+import com.sochat.shared.SoChatException;
 import com.sochat.shared.Utils;
 import com.sochat.shared.io.StandardUserIO;
 import com.sochat.shared.io.UserIO;
@@ -55,19 +65,15 @@ public class ChatServer extends AbstractExecutionThreadService {
      */
     private final UserIO mLogger;
 
+    /**
+     * Cryptographic utiuls.
+     */
     private final CryptoUtils mCrypto;
 
     /**
      * Our user database.
      */
     private final UserDatabase mDb = new UserDatabase();
-
-    /**
-     * Class responsible for handling server <-> client authentication.
-     */
-    private final ClientAuthenticator mClientAuthenticator = new ClientAuthenticator(mDb);
-
-    private String userlist = "List of currently connected users: \n";
 
     /**
      * Creates a new chat server running on the specified port.
@@ -113,7 +119,7 @@ public class ChatServer extends AbstractExecutionThreadService {
      * 
      * @throws IOException
      */
-    public void run() throws IOException {
+    public void run() {
         // wait for data on the UDP socket
         while (isRunning()) {
             Arrays.fill(mBuffer, (byte) 0);
@@ -129,47 +135,12 @@ public class ChatServer extends AbstractExecutionThreadService {
                 continue;
             mLogger.logDebug("received data: " + DatatypeConverter.printBase64Binary(mBuffer));
 
-            // parse the message depending on its type
-            MessageType type = MessageType.fromId(mBuffer[Constants.MESSAGE_HEADER.length]);
-            switch (type) {
-            case CS_AUTH1:
-                int packetLength = packet.getLength() - (Constants.MESSAGE_HEADER.length + 1);
-                byte[] encryptedData = Arrays.copyOfRange(mBuffer, Constants.MESSAGE_HEADER.length, packetLength);
-                mLogger.logDebug("Data length is: " + encryptedData.length);
-
-                // decrypt data
-                String decrypted = mCrypto.decryptData(encryptedData, mPrivateKey);
-
-                String[] info = decrypted.split("::");
-                System.out.println(info[0]);
-                System.out.println(info[1]);
-                System.out.println(info[2]);
-                break;
-            case CS_AUTH3:
-                break;
-            case CMD_LIST:
-                break;
-            case CMD_LOGOUT:
-                break;
-            case CC_AUTH1:
-                break;
-            case CC_AUTH2:
-                break;
-            case CC_AUTH3:
-                break;
-            case CC_AUTH4:
-                break;
-            case CC_AUTH5:
-                break;
-            case CC_AUTH6:
-                break;
-            case CC_AUTH7:
-                break;
-            case UNKNOWN:
-                break;
-            default:
-                break;
-
+            try {
+                processPacket(packet);
+            } catch (IOException | SoChatException | GeneralSecurityException e) {
+                mLogger.logError("Error processing message: " + e.toString());
+                e.printStackTrace();
+                continue;
             }
         }
         /*
@@ -244,6 +215,120 @@ public class ChatServer extends AbstractExecutionThreadService {
          * default: mLogger.logError("Unhandled message type " + type.name());
          * break; }
          */
+    }
+
+    private void processPacket(DatagramPacket packet) throws IOException, InvalidKeyException,
+            IllegalBlockSizeException, BadPaddingException, NoSuchAlgorithmException, NoSuchPaddingException,
+            SoChatException, GeneralSecurityException {
+        // parse the message depending on its type
+        MessageType type = MessageType.fromId(mBuffer[Constants.MESSAGE_HEADER.length]);
+        switch (type) {
+        case CS_AUTH1:
+            mLogger.logMessage("Initiated authentication request from " + packet.getSocketAddress());
+            byte[] encrypted = Arrays.copyOfRange(mBuffer, Constants.MESSAGE_HEADER.length + 1, packet.getLength());
+
+            // decrypt data
+            String decrypted = mCrypto.decryptData(encrypted, mPrivateKey);
+
+            String[] info = decrypted.split("::");
+            String username = info[0];
+            BigInteger r = new BigInteger(info[1], 16);
+            byte[] c1symBytes = DatatypeConverter.parseBase64Binary(info[2]);
+            SecretKey c1sym = new SecretKeySpec(c1symBytes, 0, c1symBytes.length, "AES");
+
+            mLogger.logDebug("Username: " + username);
+            mLogger.logDebug("R = " + r);
+            mLogger.logDebug("C1sym = " + c1sym);
+
+            // if user is not in our DB, abort
+            // TODO: later, send error message back
+            if (!mDb.existsUser(username))
+                throw new SoChatException("Invalid username " + username);
+
+            // check if user exists
+            // TODO set to true
+            mDb.addUserAddress(username, packet.getSocketAddress());
+            mDb.setUserAuthenticated(username, true);
+            mDb.setUserC1sym(username, c1sym);
+
+            break;
+        case CS_AUTH3:
+            break;
+        case CMD_LIST:
+            String username1 = mDb.getUsernameByAddress(packet.getSocketAddress());
+            mLogger.logMessage("Received list command from " + packet.getSocketAddress() + "(" + username1 + ")");
+
+            // check to make sure the client has access to the LIST command
+            if (!mDb.isUserAuthenticated(username1)) {
+                mLogger.logError("Received list command from inactive/no username " + username1);
+                return;
+            }
+
+            SecretKey c1sym1 = mDb.getUserC1sym(username1);
+
+            // decrypt - redundant, but this way an exception will be thrown if
+            // the number is not a BigInteger
+            byte[] encrypted1 = Arrays.copyOfRange(mBuffer, Constants.MESSAGE_HEADER.length + 1, packet.getLength());
+            String decrypted1 = mCrypto.decryptWithSharedKey(c1sym1, encrypted1);
+            BigInteger r1 = new BigInteger(decrypted1, 16);
+
+            // send a packet back containing the list and R
+            String userList = mDb.getListOfConnectedUsers();
+            String r1Str = r1.toString(16);
+            StringBuilder listInfoBuilder = new StringBuilder();
+            listInfoBuilder.append(r1Str);
+            listInfoBuilder.append("::");
+            listInfoBuilder.append(userList);
+            String listInfo = listInfoBuilder.toString();
+            byte[] listInfoEncrypted = mCrypto.encryptWithSharedKey(c1sym1, listInfo);
+
+            // create buffer with header and list info
+            Arrays.fill(mBuffer, (byte) 0);
+            byte[] messageHeader = Utils.getHeaderForMessageType(MessageType.CMD_LIST_RESPONSE);
+            System.arraycopy(messageHeader, 0, mBuffer, 0, messageHeader.length);
+            System.arraycopy(listInfoEncrypted, 0, mBuffer, messageHeader.length, listInfoEncrypted.length);
+
+            mLogger.logDebug("List command response: " + listInfo);
+            mLogger.logDebug("List command response, encrypted: "
+                    + DatatypeConverter.printBase64Binary(listInfoEncrypted));
+
+            // send it!
+            int len = messageHeader.length + listInfoEncrypted.length;
+            sendBufferAsPacket(packet.getSocketAddress(), len);
+
+            break;
+        case CC_AUTH1:
+            break;
+        case CC_AUTH2:
+            break;
+        case CC_AUTH3:
+            break;
+        case CC_AUTH4:
+            break;
+        case CC_AUTH5:
+            break;
+        case CC_AUTH6:
+            break;
+        case CC_AUTH7:
+            break;
+        case UNKNOWN:
+            break;
+        default:
+            break;
+
+        }
+    }
+
+    public boolean sendBufferAsPacket(SocketAddress address, int length) {
+        try {
+            DatagramPacket packet = new DatagramPacket(mBuffer, length, address);
+            mSocket.send(packet);
+            mLogger.logDebug("sending packet: " + new String(DatatypeConverter.printBase64Binary(mBuffer)));
+            return true;
+        } catch (IOException e) {
+            mLogger.logError("Error sending packet: " + e);
+            return false;
+        }
     }
 
     @Override
