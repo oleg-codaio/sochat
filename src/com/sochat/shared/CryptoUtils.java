@@ -80,6 +80,8 @@ public class CryptoUtils {
             InvalidAlgorithmParameterException {
         Cipher aesCipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
         aesCipher.init(Cipher.DECRYPT_MODE, key, new IvParameterSpec(IV));
+        
+        // decrypt the data
         return new String(aesCipher.doFinal(data));
     }
 

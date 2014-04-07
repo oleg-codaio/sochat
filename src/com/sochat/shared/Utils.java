@@ -64,4 +64,34 @@ public class Utils {
         return messageHeader;
     }
 
+    private static String beforefirstspace(String str) {
+        int count = 0;
+        String result = "";
+        for (int x = 0; x < str.length() - 1; x++) {
+            if (str.charAt(x) == ' ')
+                break;
+            else {
+                count = count + 1;
+                result = result.concat(str.substring(x, x + 1));
+            }
+        }
+        return result;
+    }
+
+    private static String afterspace(String str) {
+        return str.substring(beforefirstspace(str).length() + 1, str.length());
+    }
+
+    public static String[] getMessageSplit(String message) {
+        try {
+            String[] result = new String[3];
+            result[0] = beforefirstspace(message);
+            result[1] = beforefirstspace(afterspace(message));
+            result[2] = afterspace(afterspace(message));
+            return result;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
 }

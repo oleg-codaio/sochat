@@ -23,7 +23,7 @@ public abstract class UserInfo {
         return addr;
     }
 
-    public void setLastAddress(SocketAddress addr) {
+    public void setAddress(SocketAddress addr) {
         this.addr = addr;
     }
 

@@ -39,13 +39,17 @@ public final class Constants {
         // CMD_LOGOUT(22), // logout from server/user
 
         /* BEGIN client-client authentication */
-        CC_AUTH1(30), // TODO: do CC authentication
-        CC_AUTH2(31), //
-        CC_AUTH3(32), //
-        CC_AUTH4(33), //
-        CC_AUTH5(34), //
-        CC_AUTH6(35), //
-        CC_AUTH7(36);
+        CC_AUTH1(30), // C1 -> S: C1Sym{Username(C2), R1}
+        CC_AUTH2(31), // S -> C1: C1Sym{IP(C2), R1}
+        CC_AUTH3(32), // C1 -> C2: Username(C1), IP(C1)
+        CC_AUTH4(33), // C2 -> C1: C2Sym{Username(C1), N’C2}
+        CC_AUTH5(34), // C1 -> S: C2Sym{Username(C1), Username(C2), NC1},
+                      // {Username(C1), N’C2}
+        CC_AUTH6(35), // S -> C1: C1Sym{NC1, K12, Username(C2), C2Sym{K12,
+                      // Username(C1), N’C2}}
+        CC_AUTH7(36), // C1 -> C2: C2Sym{K12, Username(C1)}
+        CC_AUTH8(37), // C2 -> C1: K12{NC2}
+        CC_AUTH9(38); // C1 -> C2: K12{NC2-1}
 
         private final byte id;
 

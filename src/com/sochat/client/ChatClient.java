@@ -1,11 +1,13 @@
 package com.sochat.client;
 
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.net.UnknownHostException;
 import java.security.GeneralSecurityException;
 import java.security.InvalidKeyException;
@@ -21,6 +23,7 @@ import javax.xml.bind.DatatypeConverter;
 
 import org.apache.commons.lang3.tuple.Pair;
 
+import com.sochat.client.db.ClientUserCache;
 import com.sochat.shared.Constants;
 import com.sochat.shared.Constants.MessageType;
 import com.sochat.shared.CryptoUtils;
@@ -52,6 +55,11 @@ public class ChatClient implements Runnable {
     private final InetSocketAddress mServerAddress;
 
     /**
+     * Cache containing available users.
+     */
+    private final ClientUserCache mUsers = new ClientUserCache();
+
+    /**
      * Create a buffer that will be used for sending/receiving UDP packets on
      * main thread.
      */
@@ -61,6 +69,11 @@ public class ChatClient implements Runnable {
      * The logger this server will use to print messages.
      */
     private final UserIO mUserIo;
+
+    /**
+     * This client's username.
+     */
+    private String mUsername;
 
     /**
      * Read input from user.
@@ -96,8 +109,7 @@ public class ChatClient implements Runnable {
      *             Thrown if there was an issue connecting to the socket.
      * @throws GeneralSecurityException
      */
-    public ChatClient(InetAddress serverAddress, int serverPort, UserIO logger) throws IOException,
-            GeneralSecurityException {
+    public ChatClient(InetAddress serverAddress, int serverPort, UserIO logger) throws IOException, GeneralSecurityException {
         mUserIo = logger;
         mInput = new ClientInputReader(mUserIo);
         mServerKey = ServerPublicKey.getServerPublicKey();
@@ -148,21 +160,34 @@ public class ChatClient implements Runnable {
                     continue;
                 }
 
-                if ("list".trim().equals(input)) {
+                if (input == null) {
+                    mUserIo.logMessage("Empty command");
+                } else if ("list".equals(input)) {
                     sendListCommand();
+                } else if ("send".equals(input.trim().split(" ")[0])) {
+                    // send USERNAME MESSAGE
+                    String[] msg = Utils.getMessageSplit(input);
+                    if (msg == null) {
+                        mUserIo.logMessage("Bad send command");
+                        continue;
+                    }
+                    String username = msg[1], message = msg[2];
+                    sendMessage(username, message);
                 } else {
                     mUserIo.logMessage("Unknown command " + input);
                 }
 
-            } catch (GeneralSecurityException e) {
+            } catch (GeneralSecurityException | SoChatException e) {
                 mUserIo.logError("Error: " + e);
             }
 
         }
     }
 
-    private void initAuth(String username, String password) throws IOException, GeneralSecurityException,
-            IllegalBlockSizeException, BadPaddingException, NoSuchAlgorithmException, NoSuchPaddingException {
+    private void initAuth(String username, String password) throws IOException, GeneralSecurityException, IllegalBlockSizeException,
+            BadPaddingException, NoSuchAlgorithmException, NoSuchPaddingException {
+        mUsername = username;
+
         // generate our symmetric key and random number
         mC1Sym = mCrypto.generateSecretKey();
         String keyBase64 = DatatypeConverter.printBase64Binary(mC1Sym.getEncoded());
@@ -195,11 +220,43 @@ public class ChatClient implements Runnable {
         int len = messageHeader.length + encrypted.length;
 
         // send!
-        sendCurrentBufferAsPacket(len);
+        sendCurrentBufferAsPacketToServer(len);
     }
 
-    private void sendListCommand() throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException,
-            IllegalBlockSizeException, BadPaddingException, GeneralSecurityException {
+    private void sendMessage(String username, String message) throws SoChatException {
+        // TODO
+        if (!mUsers.existsUser(username)) {
+            System.out.println("No such user!");
+        } else if (mUsers.isUserAuthenticated(username)) {
+            // Encrypt message with K12 and send it out
+        } else { // Connected, but not authenticated
+
+            // FIRST MESSAGE OF THE PROTOCOL
+            // //////////////////////////////////////////////////////////////////////////////////////////
+
+            SocketAddress c2address = mUsers.getAddress(username);
+            Arrays.fill(mBuffer, (byte) 0);
+            // create header
+            byte[] messageHeader = Utils.getHeaderForMessageType(MessageType.CC_AUTH1);
+
+            // copy header and encrypted message into our buffer
+            System.arraycopy(messageHeader, 0, mBuffer, 0, messageHeader.length);
+
+            // copy the encrypted message
+            System.arraycopy(mUsername.getBytes(), 0, mBuffer, messageHeader.length, mUsername.getBytes().length);
+
+            // compute length
+            int len = messageHeader.length + mUsername.getBytes().length;
+
+            // send!
+            sendCurrentBufferAsPacket(len, c2address);
+
+            // //////////////////////////////////////////////////////////////////////////////////////////////
+        }
+    }
+
+    private void sendListCommand() throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException,
+            BadPaddingException, GeneralSecurityException {
         // send LIST request to server
         Arrays.fill(mBuffer, (byte) 0);
 
@@ -209,6 +266,7 @@ public class ChatClient implements Runnable {
 
         mLastListCommandR = mCrypto.generateRandom();
         String rStr = mLastListCommandR.toString(16);
+        mUserIo.logDebug("mLastListCommandR = " + rStr);
         byte[] encrypted = mCrypto.encryptWithSharedKey(mC1Sym, rStr);
         System.arraycopy(encrypted, 0, mBuffer, messageHeader.length, encrypted.length);
 
@@ -216,14 +274,18 @@ public class ChatClient implements Runnable {
         int len = messageHeader.length + encrypted.length;
 
         // send!
-        sendCurrentBufferAsPacket(len);
+        sendCurrentBufferAsPacketToServer(len);
 
         mUserIo.logDebug("Client sent list request: " + rStr);
     }
 
-    public boolean sendCurrentBufferAsPacket(int length) {
+    public boolean sendCurrentBufferAsPacketToServer(int length) {
+        return sendCurrentBufferAsPacket(length, mServerAddress);
+    }
+
+    public boolean sendCurrentBufferAsPacket(int length, SocketAddress address) {
         try {
-            DatagramPacket attachPacket = new DatagramPacket(mBuffer, length, mServerAddress);
+            DatagramPacket attachPacket = new DatagramPacket(mBuffer, length, address);
             mSocket.send(attachPacket);
             mUserIo.logDebug("sending packet: " + new String(DatatypeConverter.printBase64Binary(mBuffer)));
             return true;
@@ -255,6 +317,7 @@ public class ChatClient implements Runnable {
         @Override
         public void run() {
             while (true) {
+                Arrays.fill(mReceiveBuffer, (byte) 0);
                 DatagramPacket packet = new DatagramPacket(mReceiveBuffer, mReceiveBuffer.length);
                 try {
                     mSocket.receive(packet);
@@ -264,47 +327,54 @@ public class ChatClient implements Runnable {
                     continue;
                 }
 
+                // check that the packet is good
                 if (!Utils.verifyPacketValid(packet, mUserIo))
                     continue;
-                mUserIo.logDebug("received data (receive thread): "
-                        + DatatypeConverter.printBase64Binary(mReceiveBuffer));
+
+                mUserIo.logDebug("received data (receive thread): " + DatatypeConverter.printBase64Binary(mReceiveBuffer));
 
                 // parse the message depending on its type
                 try {
                     processReceivedPacket(packet);
-                } catch (GeneralSecurityException | SoChatException e) {
+                } catch (GeneralSecurityException | SoChatException | UnsupportedEncodingException e) {
                     mUserIo.logError("Error processing packet: " + e.toString());
                     e.printStackTrace();
                 }
             }
         }
 
-        private void processReceivedPacket(DatagramPacket packet) throws GeneralSecurityException, SoChatException {
+        private void processReceivedPacket(DatagramPacket packet) throws GeneralSecurityException, SoChatException, UnsupportedEncodingException {
             MessageType type = MessageType.fromId(mReceiveBuffer[Constants.MESSAGE_HEADER.length]);
             switch (type) {
             case CS_AUTH2:
                 break;
             case CS_AUTH4:
                 break;
+            case CC_AUTH1:
+                byte[] ccauth1 = Arrays.copyOfRange(mReceiveBuffer, Constants.MESSAGE_HEADER.length + 1, packet.getLength());
+                String c1username = new String(ccauth1, "UTF-8");
+                System.out.println(c1username);
+                break;
             case CMD_LIST_RESPONSE:
-                byte[] encrypted = Arrays.copyOfRange(mBuffer, Constants.MESSAGE_HEADER.length + 1, packet.getLength());
+                byte[] encrypted = Arrays.copyOfRange(mReceiveBuffer, Constants.MESSAGE_HEADER.length + 1, packet.getLength());
 
                 // decrypt data
                 String decrypted = mCrypto.decryptWithSharedKey(mC1Sym, encrypted);
                 mUserIo.logDebug("Received list response from server: " + decrypted);
-                
 
                 String[] info = decrypted.split("::");
                 BigInteger r = new BigInteger(info[0], 16);
                 String list = info[1];
 
                 // check that R matches
-                if (r != mLastListCommandR) {
+                if ((r.equals(mLastListCommandR)) == false) {
+                    System.out.println("r = " + r);
+                    System.out.println("mLastListCommandR = " + mLastListCommandR);
                     r = null;
                     throw new SoChatException("Stray list response received!");
                 } else {
-                    mUserIo.logDebug("list response: " + r);
-                    mUserIo.logMessage("Online users: " + list);
+                    mUserIo.logMessage("Online users:\n" + list);
+                    mUsers.updateList(list);
                     r = null;
                 }
 
@@ -350,8 +420,8 @@ public class ChatClient implements Runnable {
     }
 
     private static void printUsage() {
-        System.out.println("SOChat, by Oleg and Saba for CS4740 final project\n\n"
-                + "usage: java SOChat serverIpAddress serverPort\n\n" + "Report bugs to me@olegvaskevich.com.");
+        System.out.println("SOChat, by Oleg and Saba for CS4740 final project\n\n" + "usage: java SOChat serverIpAddress serverPort\n\n"
+                + "Report bugs to me@olegvaskevich.com.");
     }
 
 }

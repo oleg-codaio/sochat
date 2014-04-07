@@ -19,7 +19,7 @@ import javax.crypto.spec.SecretKeySpec;
 import javax.xml.bind.DatatypeConverter;
 
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
-import com.sochat.server.db.UserDatabase;
+import com.sochat.server.db.ServerUserCache;
 import com.sochat.shared.Constants;
 import com.sochat.shared.Constants.MessageType;
 import com.sochat.shared.CryptoUtils;
@@ -73,7 +73,7 @@ public class ChatServer extends AbstractExecutionThreadService {
     /**
      * Our user database.
      */
-    private final UserDatabase mDb = new UserDatabase();
+    private final ServerUserCache mDb = new ServerUserCache();
 
     /**
      * Creates a new chat server running on the specified port.
@@ -143,78 +143,7 @@ public class ChatServer extends AbstractExecutionThreadService {
                 continue;
             }
         }
-        /*
-         * switch (type) { case GREETING: String info = new String(mBuffer);
-         * info = info.replaceAll("Oc", "").trim(); String[] relinfo =
-         * info.split(":"); String uname = relinfo[0]; String pword =
-         * relinfo[1];
-         * 
-         * if (authenticate(uname, pword)) { // add this client to our set of
-         * connected clients mLogger.logMessage("Accepted new client at " +
-         * packet.getAddress().getHostAddress() + ":" + packet.getPort());
-         * mClients.add(new ChatClientInfo(packet.getAddress(),
-         * packet.getPort())); userlist = userlist + uname + "\n";
-         * 
-         * } else { // Send the appropriate message, but for now, just // print
-         * it out System.out.println("Invalid username and/or password"); }
-         * 
-         * break;
-         * 
-         * case MESSAGE: // read the received message String message = new
-         * String(buffer, contentOffset, contentLen);
-         * mLogger.logMessage("Broadcasting message from " + packet.getAddress()
-         * + ":" + packet.getPort() + ": \"" + message + "\"");
-         * 
-         * if (message.equals("list")) {
-         * 
-         * System.arraycopy(Constants.MESSAGE_HEADER, 0, buffer, 0,
-         * contentOffset - 1); buffer[contentOffset - 1] = (byte)
-         * MessageType.INCOMING.ordinal(); String msgToSend = userlist; byte[]
-         * msgToSendBytes = msgToSend.getBytes();
-         * System.arraycopy(msgToSendBytes, 0, buffer, contentOffset,
-         * Math.min(msgToSendBytes.length, Constants.MAX_MESSAGE_LENGTH));
-         * 
-         * // ChatClientInfo client = new ChatClientInfo(); // for
-         * (ChatClientInfo client : mClients) { // deliver to all connected
-         * clients // reuse the same array, but change the message type
-         * DatagramPacket sendPacket = new DatagramPacket(buffer, contentOffset
-         * + msgToSendBytes.length, packet.getAddress(), packet.getPort()); //
-         * client.getIp(), // client.getPort()); try { mSocket.send(sendPacket);
-         * } catch (IOException e) { mLogger.logError("Error sending packet " +
-         * packet + ": " + e); // e.printStackTrace(); continue; } // }
-         * 
-         * break; }
-         * 
-         * // if (message.startsWith("send ")) {
-         * 
-         * // String[] mesinfo = message.split(":"); // String recipient =
-         * mesinfo[1]; // message = mesinfo[2];
-         * 
-         * mLogger.logMessage("Broadcasting message from " + packet.getAddress()
-         * + ":" + packet.getPort() + ": \"" + message + "\"");
-         */
-        // Recreate the message in the output format and copy it into
-        // the buffer we use to send the packet - add the header,
-        // message type, then the message
-        /*
-         * System.arraycopy(Constants.MESSAGE_HEADER, 0, buffer, 0,
-         * contentOffset - 1); buffer[contentOffset - 1] = (byte)
-         * MessageType.INCOMING.ordinal(); String msgToSend = "<From " +
-         * packet.getAddress() + ":" + packet.getPort() + ">: " + message;
-         * byte[] msgToSendBytes = msgToSend.getBytes();
-         * System.arraycopy(msgToSendBytes, 0, buffer, contentOffset,
-         * Math.min(msgToSendBytes.length, Constants.MAX_MESSAGE_LENGTH)); for
-         * (ChatClientInfo client : mClients) { // deliver to all connected
-         * clients // reuse the same array, but change the message type
-         * DatagramPacket sendPacket = new DatagramPacket(buffer, contentOffset
-         * + msgToSendBytes.length, client.getIp(), client.getPort()); try {
-         * mSocket.send(sendPacket); } catch (IOException e) {
-         * mLogger.logError("Error sending packet " + packet + ": " + e); //
-         * e.printStackTrace(); continue; } } break; // }
-         * 
-         * default: mLogger.logError("Unhandled message type " + type.name());
-         * break; }
-         */
+
     }
 
     private void processPacket(DatagramPacket packet) throws IOException, InvalidKeyException,
@@ -364,5 +293,4 @@ public class ChatServer extends AbstractExecutionThreadService {
         System.out.println("SOChat, by Oleg and Saba for CS4740 final project\n\n"
                 + "usage: java -jar SOChatServer.jar serverPort\n\n" + "Report bugs to oleg@foobox.com.");
     }
-
 }

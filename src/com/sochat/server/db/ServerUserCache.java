@@ -1,5 +1,6 @@
 package com.sochat.server.db;
 
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.HashMap;
 
@@ -13,7 +14,7 @@ import com.sochat.shared.SoChatException;
  * 
  * @author Oleg
  */
-public class UserDatabase {
+public class ServerUserCache {
 
     /**
      * Username <-> User info
@@ -25,7 +26,7 @@ public class UserDatabase {
      */
     private HashMap<SocketAddress, ServerUserInfo> mUsersByAddress = new HashMap<>();
 
-    public UserDatabase() {
+    public ServerUserCache() {
         // initialize with default entries
         addUser("saba", "sabapassword");
         addUser("oleg", "olegpassword");
@@ -53,7 +54,7 @@ public class UserDatabase {
         if (!mUsersByUsername.containsKey(username))
             throw new IllegalArgumentException("Username does not exist in server DB.");
         ServerUserInfo info = mUsersByUsername.get(username);
-        info.setLastAddress(address);
+        info.setAddress(address);
         mUsersByAddress.put(address, info);
     }
 
@@ -108,10 +109,15 @@ public class UserDatabase {
         for (ServerUserInfo s : mUsersByAddress.values()) {
             if (s.isAuthenticated()) {
                 b.append(s.getUsername());
+                b.append(":");
+                InetSocketAddress addr = (InetSocketAddress) s.getAddress();
+                b.append(addr.getAddress().getHostAddress());
+                b.append(":");
+                b.append(addr.getPort());
                 b.append('\n');
             }
         }
-        return b.toString();
+        return b.toString().trim();
     }
 
     public void setUserC1sym(String username, SecretKey c1sym) throws SoChatException {
