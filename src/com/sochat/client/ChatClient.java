@@ -502,17 +502,43 @@ public class ChatClient implements Runnable {
                 mUserIo.logDebug("C2 now has k12! " + k12);
                 BigInteger nonceC2prime = new BigInteger(ccauth5MsgSplit[2], 16);
                 ClientUserInfo user2 = mUsers.getUserInfo(username2_5);
-                mUserIo.logDebug("--- nonceC2prime: " + nonceC2prime.toString(16) + "; user2.getN2prime(): "  + user2.getN2prime().toString(16));
+                mUserIo.logDebug("--- nonceC2prime: " + nonceC2prime.toString(16) + "; user2.getN2prime(): " + user2.getN2prime().toString(16));
                 if (!nonceC2prime.equals(user2.getN2prime())) {
                     throw new SoChatException("NC'2 mismatch. Someone may be hacking around!");
                 }
                 user2.setK12(new SecretKeySpec(k12.getBytes(), 0, k12.getBytes().length, "AES"));
 
                 // now, send out a new nonce encrypted with K12
+                BigInteger nc2 = new BigInteger(16, new SecureRandom());
+                user2.setN2(nc2);
+                byte[] k12_nc2Bytes = mCrypto.encryptWithSharedKey(user2.getK12(), nc2.toString(16));
+
+                Arrays.fill(mBuffer, (byte) 0);
+
+                // create header
+                byte[] messageHeader5 = Utils.getHeaderForMessageType(MessageType.CC_AUTH6);
+
+                // copy header and encrypted message into our buffer
+                System.arraycopy(messageHeader5, 0, mBuffer, 0, messageHeader5.length);
+
+                // copy the encrypted message
+                System.arraycopy(k12_nc2Bytes, 0, mBuffer, messageHeader5.length, k12_nc2Bytes.length);
+
+                // compute length
+                int len5 = messageHeader5.length + k12_nc2Bytes.length;
+
+                // send!
+                sendCurrentBufferAsPacket(len5, user2.getAddress());
 
                 break;
 
-            // TODO!
+            case CC_AUTH6:
+                // receive C2 -> C1: K12{NC2}
+                break;
+
+            case CC_AUTH7:
+                // C1 -> C2: K12{NC2-1}
+                break;
 
             case CMD_LIST_RESPONSE:
                 byte[] encrypted = Arrays.copyOfRange(mReceiveBuffer, Constants.MESSAGE_HEADER.length + 1, packet.getLength());
