@@ -103,8 +103,6 @@ public class ClientUserCache {
             String ip = userInfo[1].trim();
             String port = userInfo[2].trim();
 
-            System.out.println("IP = " + ip);
-            System.out.println("port = " + port);
 
             SocketAddress addr = new InetSocketAddress(ip, Integer.parseInt(port));
             if (!mUsersByUsername.containsKey(username)) {
@@ -121,5 +119,11 @@ public class ClientUserCache {
         if (!mUsersByUsername.containsKey(username))
             throw new SoChatException("No such username for getAddress");
         return mUsersByUsername.get(username).getAddress();
+    }
+
+    public ClientUserInfo getUserInfo(String username) throws SoChatException {
+        if (!mUsersByUsername.containsKey(username))
+            throw new SoChatException("No such username for getUserInfo");
+        return mUsersByUsername.get(username);
     }
 }

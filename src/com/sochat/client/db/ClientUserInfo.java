@@ -11,7 +11,7 @@ import com.sochat.shared.UserInfo;
  * Package-private class that also contains server-pertinent user info. This
  * POJO is used internally in the user database.
  */
-class ClientUserInfo extends UserInfo {
+public class ClientUserInfo extends UserInfo {
 
     private SecretKey k12;
 

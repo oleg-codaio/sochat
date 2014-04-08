@@ -9,10 +9,13 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.UnknownHostException;
+import java.nio.charset.Charset;
+import java.nio.charset.spi.CharsetProvider;
 import java.security.GeneralSecurityException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
+import java.security.SecureRandom;
 import java.util.Arrays;
 
 import javax.crypto.BadPaddingException;
@@ -23,7 +26,9 @@ import javax.xml.bind.DatatypeConverter;
 
 import org.apache.commons.lang3.tuple.Pair;
 
+import com.google.common.base.Charsets;
 import com.sochat.client.db.ClientUserCache;
+import com.sochat.client.db.ClientUserInfo;
 import com.sochat.shared.Constants;
 import com.sochat.shared.Constants.MessageType;
 import com.sochat.shared.CryptoUtils;
@@ -145,6 +150,13 @@ public class ChatClient implements Runnable {
         mUserIo.logMessage("Client initialized! Type a message and press enter to send it to the server.");
         mConnected = true;
 
+        try {
+            sendListCommand();
+        } catch (GeneralSecurityException e1) {
+            // TODO Auto-generated catch block
+            e1.printStackTrace();
+        }
+
         while (!mConnected) {
             // do nothing, wait for server connection
         }
@@ -231,7 +243,7 @@ public class ChatClient implements Runnable {
             // Encrypt message with K12 and send it out
         } else { // Connected, but not authenticated
 
-            // FIRST MESSAGE OF THE PROTOCOL
+            // FIRST MESSAGE OF THE CC PROTOCOL
             // //////////////////////////////////////////////////////////////////////////////////////////
 
             SocketAddress c2address = mUsers.getAddress(username);
@@ -353,8 +365,72 @@ public class ChatClient implements Runnable {
             case CC_AUTH1:
                 byte[] ccauth1 = Arrays.copyOfRange(mReceiveBuffer, Constants.MESSAGE_HEADER.length + 1, packet.getLength());
                 String c1username = new String(ccauth1, "UTF-8");
-                System.out.println(c1username);
+
+                // SECOND MESSAGE OF THE CC PROTOCOL
+                // //////////////////////////////////////////////////////////////////////////////////////////
+                // if user doesn't exist yet, add him to our user cache
+                if (!mUsers.existsUser(c1username)) {
+                    mUsers.addUser(c1username, packet.getSocketAddress());
+                }
+                ClientUserInfo c1 = mUsers.getUserInfo(c1username);
+                c1.setN2(new BigInteger(16, new SecureRandom()));
+                BigInteger c2nonce = c1.getN2();
+                String toencrypt = c1username + "::" + c2nonce;
+                byte[] encrypted2 = mCrypto.encryptWithSharedKey(mC1Sym, toencrypt);
+                Arrays.fill(mBuffer, (byte) 0);
+                // create header
+                byte[] messageHeader = Utils.getHeaderForMessageType(MessageType.CC_AUTH2);
+
+                // copy header and encrypted message into our buffer
+                System.arraycopy(messageHeader, 0, mBuffer, 0, messageHeader.length);
+
+                // copy the encrypted message
+                System.arraycopy(encrypted2, 0, mBuffer, messageHeader.length, encrypted2.length);
+
+                // compute length
+                int len = messageHeader.length + encrypted2.length;
+
+                // send!
+                sendCurrentBufferAsPacket(len, c1.getAddress());
+
+                // //////////////////////////////////////////////////////////////////////////////////////////////
+
                 break;
+
+            case CC_AUTH2:
+                byte[] ccauth2 = Arrays.copyOfRange(mReceiveBuffer, Constants.MESSAGE_HEADER.length + 1, packet.getLength());
+
+                // SECOND MESSAGE OF THE CC PROTOCOL
+                // //////////////////////////////////////////////////////////////////////////////////////////
+                String c2username = mUsers.getUsernameByAddress(packet.getSocketAddress());
+                ClientUserInfo c2info = mUsers.getUserInfo(c2username);
+                c2info.setN1(new BigInteger(16, new SecureRandom()));
+                String ccauth2str = DatatypeConverter.printBase64Binary(ccauth2);
+                String toencrypt3 = mUsername + "::" + c2username + "::" + c2info.getN1() + "::" + ccauth2str;
+                byte[] encrypted3 = toencrypt3.getBytes("UTF-8");
+                System.out.println("to encrypt" + new String(toencrypt3));
+                System.out.println("Encrypted" + new String(encrypted3));
+                Arrays.fill(mBuffer, (byte) 0);
+
+                // create header
+                byte[] messageHeader3 = Utils.getHeaderForMessageType(MessageType.CC_AUTH3);
+
+                // copy header and encrypted message into our buffer
+                System.arraycopy(messageHeader3, 0, mBuffer, 0, messageHeader3.length);
+
+                // copy the encrypted message
+                System.arraycopy(encrypted3, 0, mBuffer, messageHeader3.length, encrypted3.length);
+
+                // compute length
+                int len3 = messageHeader3.length + encrypted3.length;
+
+                // send!
+                sendCurrentBufferAsPacketToServer(len3);
+
+                // //////////////////////////////////////////////////////////////////////////////////////////////
+
+                break;
+
             case CMD_LIST_RESPONSE:
                 byte[] encrypted = Arrays.copyOfRange(mReceiveBuffer, Constants.MESSAGE_HEADER.length + 1, packet.getLength());
 
@@ -385,7 +461,6 @@ public class ChatClient implements Runnable {
                 break;
             }
         }
-
     }
 
     public static void main(String args[]) {
