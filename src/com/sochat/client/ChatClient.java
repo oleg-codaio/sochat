@@ -25,6 +25,8 @@ import javax.xml.bind.DatatypeConverter;
 
 import org.apache.commons.lang3.tuple.Pair;
 
+import sun.security.krb5.internal.crypto.Nonce;
+
 import com.sochat.client.db.ClientUserCache;
 import com.sochat.client.db.ClientUserInfo;
 import com.sochat.shared.Constants;
@@ -297,7 +299,8 @@ public class ChatClient implements Runnable {
         try {
             DatagramPacket attachPacket = new DatagramPacket(mBuffer, length, address);
             mSocket.send(attachPacket);
-            mUserIo.logDebug("sending packet: " + new String(DatatypeConverter.printBase64Binary(mBuffer)));
+            // mUserIo.logDebug("sending packet: " + new
+            // String(DatatypeConverter.printBase64Binary(mBuffer)));
             return true;
         } catch (IOException e) {
             mUserIo.logError("Error sending packet: " + e);
@@ -341,7 +344,8 @@ public class ChatClient implements Runnable {
                 if (!Utils.verifyPacketValid(packet, mUserIo))
                     continue;
 
-                mUserIo.logDebug("received data (receive thread): " + DatatypeConverter.printBase64Binary(mReceiveBuffer));
+                // mUserIo.logDebug("received data (receive thread): " +
+                // DatatypeConverter.printBase64Binary(mReceiveBuffer));
 
                 // parse the message depending on its type
                 try {
@@ -361,6 +365,7 @@ public class ChatClient implements Runnable {
             case CS_AUTH4:
                 break;
             case CC_AUTH1:
+                // receive from C1: Username
                 byte[] ccauth1 = Arrays.copyOfRange(mReceiveBuffer, Constants.MESSAGE_HEADER.length + 1, packet.getLength());
                 String c1username = new String(ccauth1, "UTF-8");
 
@@ -371,10 +376,12 @@ public class ChatClient implements Runnable {
                     mUsers.addUser(c1username, packet.getSocketAddress());
                 }
                 ClientUserInfo c1 = mUsers.getUserInfo(c1username);
-                c1.setN2(new BigInteger(16, new SecureRandom()));
-                BigInteger c2nonce = c1.getN2();
-                String toencrypt = c1username + "::" + c2nonce;
+                BigInteger c2nonce = new BigInteger(16, new SecureRandom());
+                c1.setN2prime(c2nonce);
+                String toencrypt = c1username + "::" + c2nonce.toString(16);
+                mUserIo.logDebug("=== to encrypt : " + toencrypt);
                 byte[] encrypted2 = mCrypto.encryptWithSharedKey(mC1Sym, toencrypt);
+                mUserIo.logDebug("=== encrypted  : " + DatatypeConverter.printBase64Binary(encrypted2));
                 Arrays.fill(mBuffer, (byte) 0);
                 // create header
                 byte[] messageHeader = Utils.getHeaderForMessageType(MessageType.CC_AUTH2);
@@ -444,6 +451,7 @@ public class ChatClient implements Runnable {
                 String usernameC2 = ccauth4MsgSplit[2];
                 String c2symData = ccauth4MsgSplit[3];
                 ClientUserInfo c2 = mUsers.getUserInfo(usernameC2);
+                mUserIo.logDebug("C1 now has k12! " + ccauth4MsgSplit[1]);
 
                 c2.setN1(new BigInteger(nonceC1, 16));
                 c2.setK12(new SecretKeySpec(k12Bytes, 0, k12Bytes.length, "AES"));
@@ -473,26 +481,38 @@ public class ChatClient implements Runnable {
                 break;
 
             case CC_AUTH5:
-                // C1 -> C2: C2Sym{K12, Username(C1)}
+                // C1 -> C2: C2Sym{K12, Username(C1), N'C2}
                 byte[] ccauth5 = Arrays.copyOfRange(mReceiveBuffer, Constants.MESSAGE_HEADER.length + 1, packet.getLength());
+                String username2_5 = mUsers.getUsernameByAddress(packet.getSocketAddress());
 
                 // FIFTH MESSAGE OF THE CC PROTOCOL
                 // //////////////////////////////////////////////////////////////////////////////////////////
+                mUserIo.logDebug("Trying to decrypt using C2Sym '" + DatatypeConverter.printBase64Binary(mC1Sym.getEncoded()) + "': "
+                        + DatatypeConverter.printBase64Binary(ccauth5));
                 String ccauth5Msg = mCrypto.decryptWithSharedKey(mC1Sym, ccauth5);
                 String[] ccauth5MsgSplit = ccauth5Msg.split("::");
-                if (ccauth5MsgSplit.length != 2) {
+                if (ccauth5MsgSplit.length != 3) {
                     throw new SoChatException("Malformed message received during send.");
                 }
-                if (!ccauth5MsgSplit[1].equals(mUsername)) {
+                if (!ccauth5MsgSplit[1].equals(username2_5)) {
                     throw new SoChatException("Username doesn't match. Someone may be hacking the protocol!");
-
                 }
 
                 String k12 = ccauth5MsgSplit[0];
-                // TODO finish last 3 messages
+                mUserIo.logDebug("C2 now has k12! " + k12);
+                BigInteger nonceC2prime = new BigInteger(ccauth5MsgSplit[2], 16);
+                ClientUserInfo user2 = mUsers.getUserInfo(username2_5);
+                mUserIo.logDebug("--- nonceC2prime: " + nonceC2prime.toString(16) + "; user2.getN2prime(): "  + user2.getN2prime().toString(16));
+                if (!nonceC2prime.equals(user2.getN2prime())) {
+                    throw new SoChatException("NC'2 mismatch. Someone may be hacking around!");
+                }
+                user2.setK12(new SecretKeySpec(k12.getBytes(), 0, k12.getBytes().length, "AES"));
+
+                // now, send out a new nonce encrypted with K12
+
                 break;
-                
-                // TODO!
+
+            // TODO!
 
             case CMD_LIST_RESPONSE:
                 byte[] encrypted = Arrays.copyOfRange(mReceiveBuffer, Constants.MESSAGE_HEADER.length + 1, packet.getLength());
@@ -507,8 +527,9 @@ public class ChatClient implements Runnable {
 
                 // check that R matches
                 if ((r.equals(mLastListCommandR)) == false) {
-                    System.out.println("r = " + r);
-                    System.out.println("mLastListCommandR = " + mLastListCommandR);
+                    // System.out.println("r = " + r);
+                    // System.out.println("mLastListCommandR = " +
+                    // mLastListCommandR);
                     r = null;
                     throw new SoChatException("Stray list response received!");
                 } else {

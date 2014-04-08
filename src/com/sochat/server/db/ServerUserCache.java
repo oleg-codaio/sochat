@@ -127,7 +127,7 @@ public class ServerUserCache {
         s.setC1Sym(c1sym);
     }
 
-    public SecretKey getUserC1sym(String username) throws SoChatException {
+    public SecretKey getUserServerSharedKey(String username) throws SoChatException {
         ServerUserInfo s = mUsersByUsername.get(username);
         if (s == null)
             throw new SoChatException("No such user " + username + " in database when setting C1Sym.");

@@ -18,7 +18,7 @@ public class ClientUserInfo extends UserInfo {
     // if this client is C1:
     private String c2sym_msg2; // C2Sym{Username(C1), N’C2}
 
-    private BigInteger n1, n2;
+    private BigInteger n1, n2prime, n2;
     private String c2sym_msg4; // C2Sym{K12, Username(C1), N’C2}
 
     // if this client is C2, only needs to know secret key and nc2
@@ -64,6 +64,14 @@ public class ClientUserInfo extends UserInfo {
 
     public void setN1(BigInteger n1) {
         this.n1 = n1;
+    }
+
+    public BigInteger getN2prime() {
+        return n2prime;
+    }
+
+    public void setN2prime(BigInteger n2prime) {
+        this.n2prime = n2prime;
     }
 
     public BigInteger getN2() {

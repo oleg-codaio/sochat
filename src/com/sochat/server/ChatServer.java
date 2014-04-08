@@ -133,7 +133,8 @@ public class ChatServer extends AbstractExecutionThreadService {
 
             if (!Utils.verifyPacketValid(packet, mLogger))
                 continue;
-            mLogger.logDebug("received data: " + DatatypeConverter.printBase64Binary(mBuffer));
+            // mLogger.logDebug("received data: " +
+            // DatatypeConverter.printBase64Binary(mBuffer));
 
             try {
                 processPacket(packet);
@@ -164,9 +165,9 @@ public class ChatServer extends AbstractExecutionThreadService {
             byte[] c1symBytes = DatatypeConverter.parseBase64Binary(info[2]);
             SecretKey c1sym = new SecretKeySpec(c1symBytes, 0, c1symBytes.length, "AES");
 
-            mLogger.logDebug("Username: " + username);
-            mLogger.logDebug("R = " + r);
-            mLogger.logDebug("C1sym = " + c1sym);
+            // mLogger.logDebug("Username: " + username);
+            // mLogger.logDebug("R = " + r);
+            // mLogger.logDebug("C1sym = " + c1sym);
 
             // if user is not in our DB, abort
             // TODO: later, send error message back
@@ -192,7 +193,7 @@ public class ChatServer extends AbstractExecutionThreadService {
                 return;
             }
 
-            SecretKey c1sym1 = mDb.getUserC1sym(username1);
+            SecretKey c1sym1 = mDb.getUserServerSharedKey(username1);
 
             // decrypt - redundant, but this way an exception will be thrown if
             // the number is not a BigInteger
@@ -216,7 +217,7 @@ public class ChatServer extends AbstractExecutionThreadService {
             System.arraycopy(messageHeader, 0, mBuffer, 0, messageHeader.length);
             System.arraycopy(listInfoEncrypted, 0, mBuffer, messageHeader.length, listInfoEncrypted.length);
 
-            mLogger.logDebug("List command response: " + listInfo);
+            // mLogger.logDebug("List command response: " + listInfo);
 
             // send it!
             int len = messageHeader.length + listInfoEncrypted.length;
@@ -255,13 +256,14 @@ public class ChatServer extends AbstractExecutionThreadService {
             }
             BigInteger nc1 = new BigInteger(data3Split[2], 16);
             byte[] encryptedC2SymData = DatatypeConverter.parseBase64Binary(data3Split[3]);
-            SecretKey c2sym = mDb.getUserC1sym(usernameC2);
+            SecretKey c2sym = mDb.getUserServerSharedKey(usernameC2);
             String C2SymData = mCrypto.decryptWithSharedKey(c2sym, encryptedC2SymData);
             String[] C2SymDataSplit = C2SymData.split("::");
             if (C2SymDataSplit.length != 2) {
                 // TODO: send error message back?
                 throw new SoChatException("CC auth msg #3 is malformed (2).");
             }
+            mLogger.logDebug("C2SymData: " + C2SymData + "; " + C2SymDataSplit[0] + "; " + C2SymDataSplit[1]);
             String usernameC1_C2 = C2SymDataSplit[0];
             if (!usernameC1_C2.equals(username3)) {
                 // TODO: send error message back?
@@ -281,10 +283,13 @@ public class ChatServer extends AbstractExecutionThreadService {
             C2SymDataReturn.append(usernameC1);
             C2SymDataReturn.append("::");
             C2SymDataReturn.append(nc2.toString(16));
-            C2SymDataReturn.append("::");
-            byte[] C2SymDataReturnBytes = C2SymDataReturn.toString().getBytes("UTF-8");
+            String C2SymDataReturnStr = C2SymDataReturn.toString();
+            byte[] C2SymDataReturn_encrypted = mCrypto.encryptWithSharedKey(c2sym, C2SymDataReturnStr);
+            String C2SymDataReturn_encryptedStr = DatatypeConverter.printBase64Binary(C2SymDataReturn_encrypted);
+            // mUserIo.logDebug("Encrypting C2Sym '" +
+            // DatatypeConverter.printBase64Binary(mC1Sym.getEncoded()) + "': "
+            // + DatatypeConverter.printBase64Binary(ccauth5));
 
-            String C2SymDataReturn_encrypted = DatatypeConverter.printBase64Binary(C2SymDataReturnBytes);
             StringBuilder responseBuilder3 = new StringBuilder();
             responseBuilder3.append(nc1.toString(16));
             responseBuilder3.append("::");
@@ -292,9 +297,9 @@ public class ChatServer extends AbstractExecutionThreadService {
             responseBuilder3.append("::");
             responseBuilder3.append(usernameC2);
             responseBuilder3.append("::");
-            responseBuilder3.append(C2SymDataReturn_encrypted);
+            responseBuilder3.append(C2SymDataReturn_encryptedStr);
 
-            SecretKey c1sym_3 = mDb.getUserC1sym(usernameC1);
+            SecretKey c1sym_3 = mDb.getUserServerSharedKey(usernameC1);
             String response3 = responseBuilder3.toString();
             mLogger.logDebug("Sending out auth msg #4: " + response3);
             byte[] response3Encrypted = mCrypto.encryptWithSharedKey(c1sym_3, response3);
@@ -320,7 +325,8 @@ public class ChatServer extends AbstractExecutionThreadService {
         try {
             DatagramPacket packet = new DatagramPacket(mBuffer, length, address);
             mSocket.send(packet);
-            mLogger.logDebug("sending packet: " + new String(DatatypeConverter.printBase64Binary(mBuffer)));
+            // mLogger.logDebug("sending packet: " + new
+            // String(DatatypeConverter.printBase64Binary(mBuffer)));
             return true;
         } catch (IOException e) {
             mLogger.logError("Error sending packet: " + e);
