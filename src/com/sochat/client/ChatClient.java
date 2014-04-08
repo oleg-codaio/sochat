@@ -478,7 +478,7 @@ public class ChatClient implements Runnable {
 
                 // FIFTH MESSAGE OF THE CC PROTOCOL
                 // //////////////////////////////////////////////////////////////////////////////////////////
-                String ccauth5Msg = mCrypto.decryptWithSharedKey(mC1Sym, ccauth4);
+                String ccauth5Msg = mCrypto.decryptWithSharedKey(mC1Sym, ccauth5);
                 String[] ccauth5MsgSplit = ccauth5Msg.split("::");
                 if (ccauth5MsgSplit.length != 2) {
                     throw new SoChatException("Malformed message received during send.");
