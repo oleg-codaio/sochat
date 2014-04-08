@@ -9,8 +9,6 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.UnknownHostException;
-import java.nio.charset.Charset;
-import java.nio.charset.spi.CharsetProvider;
 import java.security.GeneralSecurityException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
@@ -22,11 +20,11 @@ import javax.crypto.BadPaddingException;
 import javax.crypto.IllegalBlockSizeException;
 import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
 import javax.xml.bind.DatatypeConverter;
 
 import org.apache.commons.lang3.tuple.Pair;
 
-import com.google.common.base.Charsets;
 import com.sochat.client.db.ClientUserCache;
 import com.sochat.client.db.ClientUserInfo;
 import com.sochat.shared.Constants;
@@ -428,8 +426,73 @@ public class ChatClient implements Runnable {
                 sendCurrentBufferAsPacketToServer(len3);
 
                 // //////////////////////////////////////////////////////////////////////////////////////////////
-
                 break;
+
+            case CC_AUTH4: // C1Sym{NC1, K12, Username(C2), C2Sym{K12,
+                           // Username(C1), N’C2}}
+                byte[] ccauth4 = Arrays.copyOfRange(mReceiveBuffer, Constants.MESSAGE_HEADER.length + 1, packet.getLength());
+
+                // FOURTH MESSAGE OF THE CC PROTOCOL
+                // //////////////////////////////////////////////////////////////////////////////////////////
+                String ccauth4Msg = mCrypto.decryptWithSharedKey(mC1Sym, ccauth4);
+                String[] ccauth4MsgSplit = ccauth4Msg.split("::");
+                if (ccauth4MsgSplit.length != 4) {
+                    throw new SoChatException("Malformed message received during send.");
+                }
+                String nonceC1 = ccauth4MsgSplit[0];
+                byte[] k12Bytes = ccauth4MsgSplit[1].getBytes("UTF-8");
+                String usernameC2 = ccauth4MsgSplit[2];
+                String c2symData = ccauth4MsgSplit[3];
+                ClientUserInfo c2 = mUsers.getUserInfo(usernameC2);
+
+                c2.setN1(new BigInteger(nonceC1, 16));
+                c2.setK12(new SecretKeySpec(k12Bytes, 0, k12Bytes.length, "AES"));
+                c2.setC2sym_msg4(c2symData);
+
+                mUserIo.logDebug("Received msg #4: " + ccauth4Msg);
+                byte[] c2symDataBytes = DatatypeConverter.parseBase64Binary(c2symData);
+
+                Arrays.fill(mBuffer, (byte) 0);
+
+                // create header
+                byte[] messageHeader4 = Utils.getHeaderForMessageType(MessageType.CC_AUTH5);
+
+                // copy header and encrypted message into our buffer
+                System.arraycopy(messageHeader4, 0, mBuffer, 0, messageHeader4.length);
+
+                // copy the encrypted message
+                System.arraycopy(c2symDataBytes, 0, mBuffer, messageHeader4.length, c2symDataBytes.length);
+
+                // compute length
+                int len4 = messageHeader4.length + c2symDataBytes.length;
+
+                // send!
+                sendCurrentBufferAsPacket(len4, c2.getAddress());
+
+                // //////////////////////////////////////////////////////////////////////////////////////////////
+                break;
+
+            case CC_AUTH5:
+                // C1 -> C2: C2Sym{K12, Username(C1)}
+                byte[] ccauth5 = Arrays.copyOfRange(mReceiveBuffer, Constants.MESSAGE_HEADER.length + 1, packet.getLength());
+
+                // FIFTH MESSAGE OF THE CC PROTOCOL
+                // //////////////////////////////////////////////////////////////////////////////////////////
+                String ccauth5Msg = mCrypto.decryptWithSharedKey(mC1Sym, ccauth4);
+                String[] ccauth5MsgSplit = ccauth5Msg.split("::");
+                if (ccauth5MsgSplit.length != 2) {
+                    throw new SoChatException("Malformed message received during send.");
+                }
+                if (!ccauth5MsgSplit[1].equals(mUsername)) {
+                    throw new SoChatException("Username doesn't match. Someone may be hacking the protocol!");
+
+                }
+
+                String k12 = ccauth5MsgSplit[0];
+                // TODO finish last 3 messages
+                break;
+                
+                // TODO!
 
             case CMD_LIST_RESPONSE:
                 byte[] encrypted = Arrays.copyOfRange(mReceiveBuffer, Constants.MESSAGE_HEADER.length + 1, packet.getLength());

@@ -146,9 +146,8 @@ public class ChatServer extends AbstractExecutionThreadService {
 
     }
 
-    private void processPacket(DatagramPacket packet) throws IOException, InvalidKeyException,
-            IllegalBlockSizeException, BadPaddingException, NoSuchAlgorithmException, NoSuchPaddingException,
-            SoChatException, GeneralSecurityException {
+    private void processPacket(DatagramPacket packet) throws IOException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException,
+            NoSuchAlgorithmException, NoSuchPaddingException, SoChatException, GeneralSecurityException {
         // parse the message depending on its type
         MessageType type = MessageType.fromId(mBuffer[Constants.MESSAGE_HEADER.length]);
         switch (type) {
@@ -218,31 +217,100 @@ public class ChatServer extends AbstractExecutionThreadService {
             System.arraycopy(listInfoEncrypted, 0, mBuffer, messageHeader.length, listInfoEncrypted.length);
 
             mLogger.logDebug("List command response: " + listInfo);
-            mLogger.logDebug("List command response, encrypted: "
-                    + DatatypeConverter.printBase64Binary(listInfoEncrypted));
 
             // send it!
             int len = messageHeader.length + listInfoEncrypted.length;
             sendBufferAsPacket(packet.getSocketAddress(), len);
 
             break;
-        case CC_AUTH1:
-            break;
-        case CC_AUTH2:
-            break;
         case CC_AUTH3:
-            break;
-        case CC_AUTH4:
-            break;
-        case CC_AUTH5:
-            break;
-        case CC_AUTH6:
-            break;
-        case CC_AUTH7:
-            break;
-        case UNKNOWN:
+            String username3 = mDb.getUsernameByAddress(packet.getSocketAddress());
+            mLogger.logMessage("Received client-to-client auth msg #3 from " + packet.getSocketAddress() + "(" + username3 + ")");
+
+            // check to make sure the clients are authenticated
+            if (!mDb.isUserAuthenticated(username3)) {
+                mLogger.logError("Received auth command from inactive/no username " + username3);
+                return;
+            }
+
+            // decrypt - redundant, but this way an exception will be thrown if
+            // the number is not a BigInteger
+            byte[] data3 = Arrays.copyOfRange(mBuffer, Constants.MESSAGE_HEADER.length + 1, packet.getLength());
+            String data3Str = new String(data3, "UTF-8");
+            mLogger.logDebug("Received auth3 packet: " + data3Str);
+            String[] data3Split = data3Str.split("::");
+            if (data3Split.length != 4) {
+                // TODO: send error message back?
+                throw new SoChatException("CC auth msg #3 is malformed.");
+            }
+            String usernameC1 = data3Split[0];
+            String usernameC2 = data3Split[1];
+            if (!usernameC1.equals(username3)) {
+                // TODO: send error message back?
+                throw new SoChatException("IP address does not match username. An attack may be underway!");
+            }
+            if (!mDb.existsUser(usernameC2)) {
+                // TODO: send error message back?
+                throw new SoChatException("Receipient username does not exist!");
+            }
+            BigInteger nc1 = new BigInteger(data3Split[2], 16);
+            byte[] encryptedC2SymData = DatatypeConverter.parseBase64Binary(data3Split[3]);
+            SecretKey c2sym = mDb.getUserC1sym(usernameC2);
+            String C2SymData = mCrypto.decryptWithSharedKey(c2sym, encryptedC2SymData);
+            String[] C2SymDataSplit = C2SymData.split("::");
+            if (C2SymDataSplit.length != 2) {
+                // TODO: send error message back?
+                throw new SoChatException("CC auth msg #3 is malformed (2).");
+            }
+            String usernameC1_C2 = C2SymDataSplit[0];
+            if (!usernameC1_C2.equals(username3)) {
+                // TODO: send error message back?
+                throw new SoChatException("Recipient's username does not match intended recipient. An attack may be underway!");
+            }
+            BigInteger nc2 = new BigInteger(C2SymDataSplit[1], 16);
+
+            // Now construct the response packet
+            // C1Sym{NC1, K12, Username(C2), C2Sym{K12, Username(C1), N’C2}}
+
+            // session key for data, should be forgotten by server for sake of
+            // forward secrecy
+            String k12 = DatatypeConverter.printBase64Binary(mCrypto.generateSecretKey().getEncoded());
+            StringBuilder C2SymDataReturn = new StringBuilder();
+            C2SymDataReturn.append(k12);
+            C2SymDataReturn.append("::");
+            C2SymDataReturn.append(usernameC1);
+            C2SymDataReturn.append("::");
+            C2SymDataReturn.append(nc2.toString(16));
+            C2SymDataReturn.append("::");
+            byte[] C2SymDataReturnBytes = C2SymDataReturn.toString().getBytes("UTF-8");
+
+            String C2SymDataReturn_encrypted = DatatypeConverter.printBase64Binary(C2SymDataReturnBytes);
+            StringBuilder responseBuilder3 = new StringBuilder();
+            responseBuilder3.append(nc1.toString(16));
+            responseBuilder3.append("::");
+            responseBuilder3.append(k12);
+            responseBuilder3.append("::");
+            responseBuilder3.append(usernameC2);
+            responseBuilder3.append("::");
+            responseBuilder3.append(C2SymDataReturn_encrypted);
+
+            SecretKey c1sym_3 = mDb.getUserC1sym(usernameC1);
+            String response3 = responseBuilder3.toString();
+            mLogger.logDebug("Sending out auth msg #4: " + response3);
+            byte[] response3Encrypted = mCrypto.encryptWithSharedKey(c1sym_3, response3);
+
+            // create buffer with header and list info
+            Arrays.fill(mBuffer, (byte) 0);
+            byte[] messageHeader3 = Utils.getHeaderForMessageType(MessageType.CC_AUTH4);
+            System.arraycopy(messageHeader3, 0, mBuffer, 0, messageHeader3.length);
+            System.arraycopy(response3Encrypted, 0, mBuffer, messageHeader3.length, response3Encrypted.length);
+
+            // send it!
+            int len3 = messageHeader3.length + response3Encrypted.length;
+            sendBufferAsPacket(packet.getSocketAddress(), len3);
             break;
         default:
+            mLogger.logError("Received unhandled/unknown packet of type " + type);
             break;
 
         }
@@ -290,7 +358,7 @@ public class ChatServer extends AbstractExecutionThreadService {
     }
 
     private static void printUsage() {
-        System.out.println("SOChat, by Oleg and Saba for CS4740 final project\n\n"
-                + "usage: java -jar SOChatServer.jar serverPort\n\n" + "Report bugs to oleg@foobox.com.");
+        System.out.println("SOChat, by Oleg and Saba for CS4740 final project\n\n" + "usage: java -jar SOChatServer.jar serverPort\n\n"
+                + "Report bugs to oleg@foobox.com.");
     }
 }
