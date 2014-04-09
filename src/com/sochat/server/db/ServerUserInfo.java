@@ -12,8 +12,8 @@ import com.sochat.shared.CryptoUtils;
 import com.sochat.shared.UserInfo;
 
 /**
- * Package-private class that also contains server-pertinent user info. This
- * POJO is used internally in the user database.
+ * Package-private class that also contains server-pertinent user info. This POJO is used internally in the user
+ * database.
  */
 class ServerUserInfo extends UserInfo {
 
@@ -26,14 +26,14 @@ class ServerUserInfo extends UserInfo {
     private int n;
 
     /**
-     * Session key - this will be forgotten when the user logs out or server
-     * shuts down.
+     * Session key - this will be forgotten when the user logs out or server shuts down.
      */
     private SecretKey c1Sym;
 
     private boolean isAuthenticated = false;
 
-    public static ServerUserInfo create(String username, String password) throws UnsupportedEncodingException, GeneralSecurityException {
+    public static ServerUserInfo create(String username, String password) throws UnsupportedEncodingException,
+            GeneralSecurityException {
         ServerUserInfo info = new ServerUserInfo(username);
 
         // generate salt

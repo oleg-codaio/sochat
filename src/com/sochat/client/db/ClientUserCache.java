@@ -7,8 +7,7 @@ import java.util.HashMap;
 import com.sochat.shared.SoChatException;
 
 /**
- * Class that emulates an in-memory database that contains user credentials as
- * well as their connection status.
+ * Class that emulates an in-memory database that contains user credentials as well as their connection status.
  * 
  * @author Oleg
  */
@@ -83,8 +82,7 @@ public class ClientUserCache {
     }
 
     /**
-     * Updates the database with the latest output of the "list" command from
-     * the server.
+     * Updates the database with the latest output of the "list" command from the server.
      * 
      * @param list
      * @throws SoChatException

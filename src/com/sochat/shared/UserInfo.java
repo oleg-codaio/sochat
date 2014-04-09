@@ -3,8 +3,7 @@ package com.sochat.shared;
 import java.net.SocketAddress;
 
 /**
- * Basic class that contains the basic user info: username and associated socket
- * address (IP address + port).
+ * Basic class that contains the basic user info: username and associated socket address (IP address + port).
  */
 public abstract class UserInfo {
 

@@ -8,9 +8,8 @@ public final class Constants {
     public static final short VERSION = 0;
 
     /**
-     * In addition to the IP header and UDP header, each packet also contains a
-     * 4-byte message header containing 6 constant bytes and 2 version bytes.
-     * This format should never be changed for compatibility reasons!
+     * In addition to the IP header and UDP header, each packet also contains a 4-byte message header containing 6
+     * constant bytes and 2 version bytes. This format should never be changed for compatibility reasons!
      */
     public static final byte[] MESSAGE_HEADER = { 'S', 'O', 'C', 'h', 'a', 't', VERSION & 0xff, (VERSION >> 8) & 0xff };
 
@@ -24,9 +23,8 @@ public final class Constants {
     public static final String AUTH_FAIL = "Invalid username or password";
 
     /**
-     * The type of message we have received. The ordinal is used as the first
-     * byte of the message to identify the message type within a UDP packet's
-     * payload.
+     * The type of message we have received. The ordinal is used as the first byte of the message to identify the
+     * message type within a UDP packet's payload.
      */
     public enum MessageType {
         UNKNOWN(0),

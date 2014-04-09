@@ -1,19 +1,15 @@
 package com.sochat.server;
 
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
-import java.net.SocketAddress;
 import java.security.GeneralSecurityException;
-import java.security.InvalidKeyException;
-import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
 import java.util.Arrays;
 
-import javax.crypto.BadPaddingException;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import javax.xml.bind.DatatypeConverter;
@@ -29,11 +25,10 @@ import com.sochat.shared.io.StandardUserIO;
 import com.sochat.shared.io.UserIO;
 
 /**
- * Class that contains the chat server, which is responsible for containing the
- * list of credentials for valid users.
+ * Class that contains the chat server, which is responsible for containing the list of credentials for valid users.
  * 
- * Note that for the specifications of this project, this server keeps its
- * "database" in memory. If the server is restarted then its state will be lost.
+ * Note that for the specifications of this project, this server keeps its "database" in memory. If the server is
+ * restarted then its state will be lost.
  * 
  * @author Oleg, Saba
  */
@@ -60,8 +55,7 @@ public class ChatServer extends AbstractExecutionThreadService {
     private final byte[] mBuffer = new byte[Constants.MAX_MESSAGE_LENGTH];
 
     /**
-     * The logger this server will use to print messages (or save somewhere for
-     * unit tests).
+     * The logger this server will use to print messages (or save somewhere for unit tests).
      */
     private final UserIO mLogger;
 
@@ -85,8 +79,9 @@ public class ChatServer extends AbstractExecutionThreadService {
      *             Thrown if there was an issue connecting to the socket.
      * @throws GeneralSecurityException
      */
-    public ChatServer(int port, UserIO logger) throws IOException, GeneralSecurityException {
-        mPrivateKey = ServerPrivateKey.getServerPrivateKey();
+    public ChatServer(int port, UserIO logger, String privateKeyModulus, String privateKeyExponent) throws IOException,
+            GeneralSecurityException {
+        mPrivateKey = ServerPrivateKey.getServerPrivateKey(privateKeyModulus, privateKeyExponent);
         mLogger = logger;
         mCrypto = new CryptoUtils();
         mPort = port;
@@ -147,12 +142,19 @@ public class ChatServer extends AbstractExecutionThreadService {
 
     }
 
-    private void processPacket(DatagramPacket packet) throws IOException, InvalidKeyException, IllegalBlockSizeException, BadPaddingException,
-            NoSuchAlgorithmException, NoSuchPaddingException, SoChatException, GeneralSecurityException {
+    /**
+     * Handle a received packet.
+     * 
+     * @param packet
+     * @throws IOException
+     * @throws SoChatException
+     * @throws GeneralSecurityException
+     */
+    private void processPacket(DatagramPacket packet) throws IOException, GeneralSecurityException, SoChatException {
         // parse the message depending on its type
         MessageType type = MessageType.fromId(mBuffer[Constants.MESSAGE_HEADER.length]);
         switch (type) {
-        case CS_AUTH1:
+        case CS_AUTH1: {
             mLogger.logMessage("Initiated authentication request from " + packet.getSocketAddress());
             byte[] encrypted = Arrays.copyOfRange(mBuffer, Constants.MESSAGE_HEADER.length + 1, packet.getLength());
 
@@ -190,16 +192,12 @@ public class ChatServer extends AbstractExecutionThreadService {
             String auth2 = r.toString(16) + "::" + salt + "::" + n;
             byte[] auth2encrypted = mCrypto.encryptWithSharedKey(c1sym, auth2);
 
-            Arrays.fill(mBuffer, (byte) 0);
-            byte[] messageHeader2 = Utils.getHeaderForMessageType(MessageType.CS_AUTH2);
-            System.arraycopy(messageHeader2, 0, mBuffer, 0, messageHeader2.length);
-            System.arraycopy(auth2encrypted, 0, mBuffer, messageHeader2.length, auth2encrypted.length);
+            // send response!
+            Utils.sendUdpMessage(mSocket, packet.getSocketAddress(), mBuffer, MessageType.CS_AUTH2, auth2encrypted);
 
-            // send it!
-            int len2 = messageHeader2.length + auth2encrypted.length;
-            sendBufferAsPacket(packet.getSocketAddress(), len2);
             break;
-        case CS_AUTH3:
+        }
+        case CS_AUTH3: {
             String username9 = mDb.getUsernameByAddress(packet.getSocketAddress());
             if (!mDb.existsUser(username9))
                 throw new SoChatException("Invalid username (9) " + username9);
@@ -212,7 +210,8 @@ public class ChatServer extends AbstractExecutionThreadService {
             // password
             String hashOfHashNminusOne = mCrypto.calculateLamportHash(hashNminusOne, mDb.getUserSalt(username9), 1);
             String currentHash = mDb.getUserPasswordHash(username9);
-            mLogger.logDebug("hashOfHashNminusOne: " + hashOfHashNminusOne + "; currentHash: " + currentHash + "; hashNminusOne: " + hashNminusOne);
+            mLogger.logDebug("hashOfHashNminusOne: " + hashOfHashNminusOne + "; currentHash: " + currentHash
+                    + "; hashNminusOne: " + hashNminusOne);
 
             String response;
 
@@ -229,15 +228,12 @@ public class ChatServer extends AbstractExecutionThreadService {
             }
             byte[] responseBytes9 = mCrypto.encryptWithSharedKey(c1sym_9, response);
 
-            // respond to user
-            Arrays.fill(mBuffer, (byte) 0);
-            byte[] messageHeader9 = Utils.getHeaderForMessageType(MessageType.CS_AUTH4);
-            System.arraycopy(messageHeader9, 0, mBuffer, 0, messageHeader9.length);
-            System.arraycopy(responseBytes9, 0, mBuffer, messageHeader9.length, responseBytes9.length);
-            int len9 = messageHeader9.length + responseBytes9.length;
-            sendBufferAsPacket(packet.getSocketAddress(), len9);
+            // send response!
+            Utils.sendUdpMessage(mSocket, packet.getSocketAddress(), mBuffer, MessageType.CS_AUTH4, responseBytes9);
+
             break;
-        case CMD_LIST:
+        }
+        case CMD_LIST: {
             String username1 = mDb.getUsernameByAddress(packet.getSocketAddress());
             mLogger.logDebug("Received list command from " + packet.getSocketAddress() + "(" + username1 + ")");
 
@@ -265,22 +261,16 @@ public class ChatServer extends AbstractExecutionThreadService {
             String listInfo = listInfoBuilder.toString();
             byte[] listInfoEncrypted = mCrypto.encryptWithSharedKey(c1sym1, listInfo);
 
-            // create buffer with header and list info
-            Arrays.fill(mBuffer, (byte) 0);
-            byte[] messageHeader = Utils.getHeaderForMessageType(MessageType.CMD_LIST_RESPONSE);
-            System.arraycopy(messageHeader, 0, mBuffer, 0, messageHeader.length);
-            System.arraycopy(listInfoEncrypted, 0, mBuffer, messageHeader.length, listInfoEncrypted.length);
-
-            // mLogger.logDebug("List command response: " + listInfo);
-
-            // send it!
-            int len = messageHeader.length + listInfoEncrypted.length;
-            sendBufferAsPacket(packet.getSocketAddress(), len);
+            // send response!
+            Utils.sendUdpMessage(mSocket, packet.getSocketAddress(), mBuffer, MessageType.CMD_LIST_RESPONSE,
+                    listInfoEncrypted);
 
             break;
-        case CC_AUTH3:
+        }
+        case CC_AUTH3: {
             String username3 = mDb.getUsernameByAddress(packet.getSocketAddress());
-            mLogger.logMessage("Received client-to-client auth msg #3 from " + packet.getSocketAddress() + "(" + username3 + ")");
+            mLogger.logMessage("Received client-to-client auth msg #3 from " + packet.getSocketAddress() + "("
+                    + username3 + ")");
 
             // check to make sure the clients are authenticated
             if (!mDb.isUserAuthenticated(username3)) {
@@ -321,7 +311,8 @@ public class ChatServer extends AbstractExecutionThreadService {
             String usernameC1_C2 = C2SymDataSplit[0];
             if (!usernameC1_C2.equals(username3)) {
                 // TODO: send error message back?
-                throw new SoChatException("Recipient's username does not match intended recipient. An attack may be underway!");
+                throw new SoChatException(
+                        "Recipient's username does not match intended recipient. An attack may be underway!");
             }
             BigInteger nc2 = new BigInteger(C2SymDataSplit[1], 16);
 
@@ -358,33 +349,15 @@ public class ChatServer extends AbstractExecutionThreadService {
             mLogger.logDebug("Sending out auth msg #4: " + response3);
             byte[] response3Encrypted = mCrypto.encryptWithSharedKey(c1sym_3, response3);
 
-            // create buffer with header and list info
-            Arrays.fill(mBuffer, (byte) 0);
-            byte[] messageHeader3 = Utils.getHeaderForMessageType(MessageType.CC_AUTH4);
-            System.arraycopy(messageHeader3, 0, mBuffer, 0, messageHeader3.length);
-            System.arraycopy(response3Encrypted, 0, mBuffer, messageHeader3.length, response3Encrypted.length);
+            // send response!
+            Utils.sendUdpMessage(mSocket, packet.getSocketAddress(), mBuffer, MessageType.CC_AUTH4, response3Encrypted);
 
-            // send it!
-            int len3 = messageHeader3.length + response3Encrypted.length;
-            sendBufferAsPacket(packet.getSocketAddress(), len3);
             break;
+        }
         default:
             mLogger.logError("Received unhandled/unknown packet of type " + type);
             break;
 
-        }
-    }
-
-    public boolean sendBufferAsPacket(SocketAddress address, int length) {
-        try {
-            DatagramPacket packet = new DatagramPacket(mBuffer, length, address);
-            mSocket.send(packet);
-            // mLogger.logDebug("sending packet: " + new
-            // String(DatatypeConverter.printBase64Binary(mBuffer)));
-            return true;
-        } catch (IOException e) {
-            mLogger.logError("Error sending packet: " + e);
-            return false;
         }
     }
 
@@ -407,18 +380,39 @@ public class ChatServer extends AbstractExecutionThreadService {
             return;
         }
 
+        // read in modulus and exponent from file
+        String privateKeyModulus, privateKeyExponent;
+        try {
+            BufferedReader reader = new BufferedReader(new FileReader("server.config"));
+            privateKeyModulus = reader.readLine().trim();
+            privateKeyExponent = reader.readLine().trim();
+            reader.close();
+
+            // basic validation
+            if (!privateKeyModulus.startsWith("private_key_modulus=")
+                    || !privateKeyExponent.startsWith("private_key_exponent="))
+                throw new SoChatException("error reading fields");
+
+            privateKeyModulus = privateKeyModulus.replaceFirst("private_key_modulus=", "");
+            privateKeyExponent = privateKeyExponent.replaceFirst("private_key_exponent=", "");
+        } catch (IOException | SoChatException e) {
+            System.err.println("Error while reading in server configuration: " + e.getMessage()
+                    + " - please see README.md.");
+            return;
+        }
+
         ChatServer server;
         try {
-            server = new ChatServer(port, new StandardUserIO());
+            server = new ChatServer(port, new StandardUserIO(), privateKeyModulus, privateKeyExponent);
             server.startAsync();
         } catch (IOException | SecurityException | GeneralSecurityException e) {
-            System.err.println("ChatServer encountered an error! Exiting.");
-            e.printStackTrace();
+            System.err.println("ChatServer encountered an error. Exiting. Details: " + e.getLocalizedMessage());
+            // e.printStackTrace();
         }
     }
 
     private static void printUsage() {
-        System.out.println("SOChat, by Oleg and Saba for CS4740 final project\n\n" + "usage: java -jar SOChatServer.jar serverPort\n\n"
-                + "Report bugs to oleg@foobox.com.");
+        System.out.println("SOChat, by Oleg and Saba for CS4740 final project\n\n"
+                + "usage: java -jar SOChatServer.jar serverPort\n\n" + "Report bugs to oleg@foobox.com.");
     }
 }

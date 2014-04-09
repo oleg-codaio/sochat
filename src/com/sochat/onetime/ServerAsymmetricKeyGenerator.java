@@ -10,8 +10,7 @@ import java.security.spec.RSAPrivateKeySpec;
 import java.security.spec.RSAPublicKeySpec;
 
 /**
- * Stand-alone application that can be used to generate an RSA public/private
- * key pair.
+ * Stand-alone application that can be used to generate an RSA public/private key pair.
  * 
  * @author Oleg
  */

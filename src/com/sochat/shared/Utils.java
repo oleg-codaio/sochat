@@ -1,6 +1,10 @@
 package com.sochat.shared;
 
+import java.io.IOException;
 import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.SocketAddress;
+import java.util.Arrays;
 
 import com.sochat.shared.Constants.MessageType;
 import com.sochat.shared.io.UserIO;
@@ -92,6 +96,45 @@ public class Utils {
         } catch (Exception e) {
             return null;
         }
+    }
+
+    /**
+     * Sends a UDP message.
+     * 
+     * @param socket
+     * @param destAddr
+     *            The destination address
+     * @param buffer
+     *            The buffer to use for sending
+     * @param type
+     *            The type of message
+     * @param payload
+     *            The byte array to send
+     * @throws IOException
+     * @throws SoChatException
+     */
+    public static void sendUdpMessage(DatagramSocket socket, SocketAddress destAddr, byte[] buffer, MessageType type,
+            byte[] payload) throws IOException, SoChatException {
+        // clear out buffer
+        Arrays.fill(buffer, (byte) 0);
+
+        // create header
+        byte[] messageHeader = Utils.getHeaderForMessageType(type);
+
+        if (messageHeader.length + payload.length > buffer.length)
+            throw new SoChatException("Message is too long");
+
+        // copy header and encrypted message into our buffer
+        System.arraycopy(messageHeader, 0, buffer, 0, messageHeader.length);
+
+        // copy the encrypted message
+        System.arraycopy(payload, 0, buffer, messageHeader.length, payload.length);
+
+        // compute length
+        int len = messageHeader.length + payload.length;
+
+        // send!
+        socket.send(new DatagramPacket(buffer, len, destAddr));
     }
 
 }

@@ -8,12 +8,10 @@ import java.security.spec.RSAPrivateKeySpec;
 
 public class ServerPrivateKey {
 
-    private static final String SERVER_PRIV_KEY_MODULUS = "f0d8b10045cf1e1a8121f741390019369cd9ed170c2c7f0b47dcc4af1ca8b764e8efc4391c842329eb863e8099607dda3fd9ba70cc27d8b340e6dabe2964952405f164f187d9c6848343de6f193d16c7708355919b4d419400a82bac0f1c6472fe0c0c757a9c5362799a60c0f204b22a9eece9a82e95f827fb077a1dad07101ac03500ca7b0411331dc7b27ef9112eff9a1d75b6ac0ae85d03694c9e09ae8b04eb31a992de9d5e1cce14bb1abd26b0e56da9abb57d7f4acd9efa72c43dcf05c666ee1a739e2e69fdfeaa388282a731c99f248f9e4bba1d926d1c5c3d3bfbbe17bbc2faa2bb39ab60464691a5396582789f3639d3ed9751cad9ad1252d2443f6d";
-    private static final String SERVER_PRIV_KEY_EXPONENT = "71f8c901ed070f22d1bae60baa529e9bd66bd62352f277883a1081ceb00c330500a9fdbc5cff36b8aea8cf4901cbc4a294168f80b34ba3e367b2170f67fd1e0a76f97da0427e4ed00462088fa06ce52ba9d5ac9783db724dfc65988d0a75901f4e931b0e38e0632135945576d8d05a138b33677adbd8c21f014ecf7ddd947b0c92a550c8b56bedd60d24060a3f43a84e02b0e6a073fea29b50f6d862d607eab758aaad65cd01f2ac889b835e87cdae4a0972554bf898d9bca1de4a5fc806611501b563d9a51f54b8a39b9fe8ff10cb09fb3b75d8a004b8720e4f490ab80d6320fd6c855024ce3d45ed4f1ca48da24697fe0451c8e58d97901af247770bfebf41";
-
-    public static PrivateKey getServerPrivateKey() throws GeneralSecurityException {
-        BigInteger modulus = new BigInteger(SERVER_PRIV_KEY_MODULUS, 16);
-        BigInteger exponent = new BigInteger(SERVER_PRIV_KEY_EXPONENT, 16);
+    public static PrivateKey getServerPrivateKey(String privateKeyModulus, String privateKeyExponent)
+            throws GeneralSecurityException {
+        BigInteger modulus = new BigInteger(privateKeyModulus, 16);
+        BigInteger exponent = new BigInteger(privateKeyExponent, 16);
 
         RSAPrivateKeySpec privKeySpec = new RSAPrivateKeySpec(modulus, exponent);
         KeyFactory keyFactory = KeyFactory.getInstance("RSA");

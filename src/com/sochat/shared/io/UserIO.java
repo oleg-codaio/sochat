@@ -3,8 +3,8 @@ package com.sochat.shared.io;
 import java.io.IOException;
 
 /**
- * Abstract class used for logging and input. This makes it easier to change the
- * output of the clients to something else in the future.
+ * Abstract class used for logging and input. This makes it easier to change the output of the clients to something else
+ * in the future.
  * 
  * @author Oleg Vaskevich
  */

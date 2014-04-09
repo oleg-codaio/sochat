@@ -6,8 +6,8 @@ import java.util.concurrent.SynchronousQueue;
 import com.sochat.shared.io.UserIO;
 
 /**
- * Logger that records the last message logged so that we can check it in a unit
- * test, and also lets us feed new messages in.
+ * Logger that records the last message logged so that we can check it in a unit test, and also lets us feed new
+ * messages in.
  * 
  * @author Oleg Vaskevich
  */
@@ -21,8 +21,7 @@ public class LastMessageSilentUserIO extends UserIO {
     }
 
     /**
-     * Sends a message to this UserIO that will be passed on as if it was
-     * entered by the user.
+     * Sends a message to this UserIO that will be passed on as if it was entered by the user.
      */
     public void feedMessage(String message) {
         mFeedMessage.add(message);

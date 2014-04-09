@@ -10,8 +10,8 @@ import javax.crypto.SecretKey;
 import com.sochat.shared.UserInfo;
 
 /**
- * Package-private class that also contains server-pertinent user info. This
- * POJO is used internally in the user database.
+ * Package-private class that also contains server-pertinent user info. This POJO is used internally in the user
+ * database.
  */
 public class ClientUserInfo extends UserInfo {
 

@@ -11,8 +11,7 @@ import javax.crypto.SecretKey;
 import com.sochat.shared.SoChatException;
 
 /**
- * Class that emulates an in-memory database that contains user credentials as
- * well as their connection status.
+ * Class that emulates an in-memory database that contains user credentials as well as their connection status.
  * 
  * @author Oleg
  */
@@ -164,8 +163,7 @@ public class ServerUserDatabase {
     }
 
     /**
-     * This should be called after authentication is successful. Updates the
-     * database with the new hash and n.
+     * This should be called after authentication is successful. Updates the database with the new hash and n.
      * 
      * @param username
      * @param hash
@@ -175,7 +173,8 @@ public class ServerUserDatabase {
     public void updateOnSuccessfulAuthentication(String username, String hash, int newN) throws SoChatException {
         ServerUserInfo s = mUsersByUsername.get(username);
         if (s == null)
-            throw new SoChatException("No such user " + username + " in database when calling updateOnSuccessfulAuthentication.");
+            throw new SoChatException("No such user " + username
+                    + " in database when calling updateOnSuccessfulAuthentication.");
         s.setPasswordHash(hash);
         s.setN(newN);
     }

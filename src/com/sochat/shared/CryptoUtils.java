@@ -25,8 +25,9 @@ public class CryptoUtils {
 
     // TODO: send IV over the network for each message for most security
     // see http://stackoverflow.com/a/4626404/832776
-    private static final byte[] IV = { (byte) 184, (byte) 215, (byte) 138, (byte) 65, (byte) 172, (byte) 211, (byte) 248, (byte) 245, (byte) 135,
-            (byte) 151, (byte) 132, (byte) 250, (byte) 0, (byte) 61, (byte) 1, (byte) 20 };
+    private static final byte[] IV = { (byte) 184, (byte) 215, (byte) 138, (byte) 65, (byte) 172, (byte) 211,
+            (byte) 248, (byte) 245, (byte) 135, (byte) 151, (byte) 132, (byte) 250, (byte) 0, (byte) 61, (byte) 1,
+            (byte) 20 };
 
     public SecretKey generateSecretKey() {
         KeyGenerator keygen;
@@ -46,8 +47,8 @@ public class CryptoUtils {
         return new BigInteger(64, new SecureRandom());
     }
 
-    public byte[] encryptData(String data, PublicKey publicKey) throws IOException, IllegalBlockSizeException, BadPaddingException,
-            NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException {
+    public byte[] encryptData(String data, PublicKey publicKey) throws IOException, IllegalBlockSizeException,
+            BadPaddingException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException {
         byte[] dataToEncrypt = data.getBytes("UTF-8");
         Cipher cipher = Cipher.getInstance("RSA");
         cipher.init(Cipher.ENCRYPT_MODE, publicKey);
@@ -56,8 +57,8 @@ public class CryptoUtils {
         return encryptedData;
     }
 
-    public String decryptData(byte[] data, PrivateKey privateKey) throws IOException, IllegalBlockSizeException, BadPaddingException,
-            InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException {
+    public String decryptData(byte[] data, PrivateKey privateKey) throws IOException, IllegalBlockSizeException,
+            BadPaddingException, InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException {
         Cipher cipher = Cipher.getInstance("RSA");
         cipher.init(Cipher.DECRYPT_MODE, privateKey);
         byte[] decryptedData = cipher.doFinal(data);
@@ -65,8 +66,9 @@ public class CryptoUtils {
         return new String(decryptedData, "UTF-8");
     }
 
-    public byte[] encryptWithSharedKey(SecretKey key, String message) throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException,
-            IllegalBlockSizeException, BadPaddingException, InvalidAlgorithmParameterException {
+    public byte[] encryptWithSharedKey(SecretKey key, String message) throws InvalidKeyException,
+            NoSuchAlgorithmException, NoSuchPaddingException, IllegalBlockSizeException, BadPaddingException,
+            InvalidAlgorithmParameterException {
 
         // get an AES cipher (with default Cipher Block Chaining for good
         // security) with the standard PKCS-defined padding
@@ -77,8 +79,9 @@ public class CryptoUtils {
         return aesCipher.doFinal(message.getBytes());
     }
 
-    public String decryptWithSharedKey(SecretKey key, byte[] data) throws IllegalBlockSizeException, BadPaddingException, NoSuchAlgorithmException,
-            NoSuchPaddingException, InvalidKeyException, InvalidAlgorithmParameterException {
+    public String decryptWithSharedKey(SecretKey key, byte[] data) throws IllegalBlockSizeException,
+            BadPaddingException, NoSuchAlgorithmException, NoSuchPaddingException, InvalidKeyException,
+            InvalidAlgorithmParameterException {
         Cipher aesCipher = Cipher.getInstance("AES/CBC/PKCS5Padding");
         aesCipher.init(Cipher.DECRYPT_MODE, key, new IvParameterSpec(IV));
 
@@ -96,7 +99,8 @@ public class CryptoUtils {
      * @throws UnsupportedEncodingException
      * @throws GeneralSecurityException
      */
-    public String calculateLamportHash(String passwordBase64, byte[] salt, int n) throws UnsupportedEncodingException, GeneralSecurityException {
+    public String calculateLamportHash(String passwordBase64, byte[] salt, int n) throws UnsupportedEncodingException,
+            GeneralSecurityException {
         if (n <= 0)
             throw new GeneralSecurityException("N too low.");
 
