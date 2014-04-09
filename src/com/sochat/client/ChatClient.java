@@ -479,8 +479,6 @@ public class ChatClient implements Runnable {
                 String ccauth2str = DatatypeConverter.printBase64Binary(ccauth2);
                 String toencrypt3 = mCredentials.getLeft() + "::" + c2username + "::" + c2info.getN1() + "::" + ccauth2str;
                 byte[] encrypted3 = toencrypt3.getBytes("UTF-8");
-                System.out.println("to encrypt" + new String(toencrypt3));
-                System.out.println("Encrypted" + new String(encrypted3));
                 Arrays.fill(mBuffer, (byte) 0);
 
                 // create header
