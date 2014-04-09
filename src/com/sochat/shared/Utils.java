@@ -34,6 +34,13 @@ public class Utils {
         return true;
     }
 
+    /**
+     * Does some preliminary detection on a packet to see if it's meant for this version of SOChat.
+     * 
+     * @param packet
+     * @param mLogger
+     * @return
+     */
     public static boolean verifyPacketValid(DatagramPacket packet, UserIO mLogger) {
         int len = packet.getLength();
         byte[] buffer = packet.getData();
@@ -60,6 +67,12 @@ public class Utils {
         return true;
     }
 
+    /**
+     * Returns the header for a particular message type.
+     * 
+     * @param type
+     * @return
+     */
     public static byte[] getHeaderForMessageType(MessageType type) {
         byte[] messageHeader = new byte[Constants.MESSAGE_HEADER.length + 1];
         System.arraycopy(Constants.MESSAGE_HEADER, 0, messageHeader, 0, Constants.MESSAGE_HEADER.length);
@@ -94,6 +107,7 @@ public class Utils {
             result[2] = afterspace(afterspace(message));
             return result;
         } catch (Exception e) {
+            // not the best code pattern, but will suffice
             return null;
         }
     }

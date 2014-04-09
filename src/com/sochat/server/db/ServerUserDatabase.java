@@ -33,6 +33,7 @@ public class ServerUserDatabase {
         addUser("oleg", "olegp");
         addUser("guevara", "guevp");
         addUser("amirali", "amirp");
+        addUser("joni", "jonip");
     }
 
     /**

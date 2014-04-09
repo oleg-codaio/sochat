@@ -99,14 +99,30 @@ public class ClientUserInfo extends UserInfo {
         this.c2sym_msg4 = c2sym_msg4;
     }
 
+    /**
+     * Adds a message to the message queue for this user. This is useful if the authentication hasn't yet completed.
+     * 
+     * @param message
+     */
     public void addMessageToQueue(String message) {
         messagesToSend.add(message);
     }
 
+    /**
+     * Returns the queue of messages waiting to be sent (i.e., due to authentication).
+     * 
+     * @return
+     */
     public Queue<String> getMessageQueue() {
         return messagesToSend;
     }
 
+    /**
+     * Retrieves the next send nonce (and autoincrements for next time). A new nonce is necessary as otherwise messages
+     * will not be received by the recipient (it could mistake them for a replay attack).
+     * 
+     * @return
+     */
     public long getNextSendNonce() {
         return sendNonce++;
     }

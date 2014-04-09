@@ -111,12 +111,26 @@ public class ClientUserCache {
         }
     }
 
+    /**
+     * Returns the address associated with a username.
+     * 
+     * @param username
+     * @return
+     * @throws SoChatException
+     */
     public SocketAddress getAddress(String username) throws SoChatException {
         if (!mUsersByUsername.containsKey(username))
             throw new SoChatException("No such username for getAddress");
         return mUsersByUsername.get(username).getAddress();
     }
 
+    /**
+     * Returns the user info object for a specified username.
+     * 
+     * @param username
+     * @return
+     * @throws SoChatException
+     */
     public ClientUserInfo getUserInfo(String username) throws SoChatException {
         if (!mUsersByUsername.containsKey(username))
             throw new SoChatException("No such username for getUserInfo");
