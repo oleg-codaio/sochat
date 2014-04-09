@@ -2,6 +2,8 @@ package com.sochat.client.db;
 
 import java.math.BigInteger;
 import java.net.SocketAddress;
+import java.util.LinkedList;
+import java.util.Queue;
 
 import javax.crypto.SecretKey;
 
@@ -20,6 +22,8 @@ public class ClientUserInfo extends UserInfo {
 
     private BigInteger n1, n2prime, n2;
     private String c2sym_msg4; // C2Sym{K12, Username(C1), N’C2}
+
+    private Queue<String> messagesToSend = new LinkedList<>();
 
     // if this client is C2, only needs to know secret key and nc2
 
@@ -88,5 +92,13 @@ public class ClientUserInfo extends UserInfo {
 
     public void setC2sym_msg4(String c2sym_msg4) {
         this.c2sym_msg4 = c2sym_msg4;
+    }
+
+    public void addMessageToQueue(String message) {
+        messagesToSend.add(message);
+    }
+
+    public Queue<String> getMessageQueue() {
+        return messagesToSend;
     }
 }

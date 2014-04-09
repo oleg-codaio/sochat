@@ -19,6 +19,10 @@ public final class Constants {
      */
     public static final short MAX_MESSAGE_LENGTH = 1024;
 
+    public static final String AUTH_SUCCESS = "Authentication successful.";
+
+    public static final String AUTH_FAIL = "Invalid username or password";
+
     /**
      * The type of message we have received. The ordinal is used as the first
      * byte of the message to identify the message type within a UDP packet's
@@ -49,7 +53,8 @@ public final class Constants {
                       // Username(C1), N’C2}}
         CC_AUTH7(36), // C1 -> C2: C2Sym{K12, Username(C1)}
         CC_AUTH8(37), // C2 -> C1: K12{NC2}
-        CC_AUTH9(38); // C1 -> C2: K12{NC2-1}
+        CC_AUTH9(38), // C1 -> C2: K12{NC2-1}
+        CC_MESSAGE(39); // K12{message}
 
         private final byte id;
 

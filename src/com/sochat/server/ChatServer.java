@@ -19,7 +19,7 @@ import javax.crypto.spec.SecretKeySpec;
 import javax.xml.bind.DatatypeConverter;
 
 import com.google.common.util.concurrent.AbstractExecutionThreadService;
-import com.sochat.server.db.ServerUserCache;
+import com.sochat.server.db.ServerUserDatabase;
 import com.sochat.shared.Constants;
 import com.sochat.shared.Constants.MessageType;
 import com.sochat.shared.CryptoUtils;
@@ -73,7 +73,7 @@ public class ChatServer extends AbstractExecutionThreadService {
     /**
      * Our user database.
      */
-    private final ServerUserCache mDb = new ServerUserCache();
+    private final ServerUserDatabase mDb = new ServerUserDatabase();
 
     /**
      * Creates a new chat server running on the specified port.
@@ -139,8 +139,8 @@ public class ChatServer extends AbstractExecutionThreadService {
             try {
                 processPacket(packet);
             } catch (IOException | SoChatException | GeneralSecurityException e) {
-                mLogger.logError("Error processing message: " + e.toString());
-                e.printStackTrace();
+                mLogger.logError("Error processing message: " + e.getMessage());
+                // e.printStackTrace();
                 continue;
             }
         }
@@ -174,18 +174,72 @@ public class ChatServer extends AbstractExecutionThreadService {
             if (!mDb.existsUser(username))
                 throw new SoChatException("Invalid username " + username);
 
-            // check if user exists
-            // TODO set to true
+            // if user is already authenticated, don't kick the valid user out -
+            // return
+            if (mDb.isUserAuthenticated(username))
+                throw new SoChatException("User " + username + " is already logged in.");
+
+            if (mDb.getUserN(username) <= 1)
+                throw new SoChatException("Authentication expired. Please see administrator to renew password.");
+
             mDb.addUserAddress(username, packet.getSocketAddress());
-            mDb.setUserAuthenticated(username, true);
             mDb.setUserC1sym(username, c1sym);
 
+            String salt = DatatypeConverter.printBase64Binary(mDb.getUserSalt(username));
+            int n = mDb.getUserN(username);
+            String auth2 = r.toString(16) + "::" + salt + "::" + n;
+            byte[] auth2encrypted = mCrypto.encryptWithSharedKey(c1sym, auth2);
+
+            Arrays.fill(mBuffer, (byte) 0);
+            byte[] messageHeader2 = Utils.getHeaderForMessageType(MessageType.CS_AUTH2);
+            System.arraycopy(messageHeader2, 0, mBuffer, 0, messageHeader2.length);
+            System.arraycopy(auth2encrypted, 0, mBuffer, messageHeader2.length, auth2encrypted.length);
+
+            // send it!
+            int len2 = messageHeader2.length + auth2encrypted.length;
+            sendBufferAsPacket(packet.getSocketAddress(), len2);
             break;
         case CS_AUTH3:
+            String username9 = mDb.getUsernameByAddress(packet.getSocketAddress());
+            if (!mDb.existsUser(username9))
+                throw new SoChatException("Invalid username (9) " + username9);
+            SecretKey c1sym_9 = mDb.getUserServerSharedKey(username9);
+
+            byte[] encrypted9 = Arrays.copyOfRange(mBuffer, Constants.MESSAGE_HEADER.length + 1, packet.getLength());
+            String hashNminusOne = mCrypto.decryptWithSharedKey(c1sym_9, encrypted9);
+
+            // try to take hash(hash^n-1) and see if it matches the expected
+            // password
+            String hashOfHashNminusOne = mCrypto.calculateLamportHash(hashNminusOne, mDb.getUserSalt(username9), 1);
+            String currentHash = mDb.getUserPasswordHash(username9);
+            mLogger.logDebug("hashOfHashNminusOne: " + hashOfHashNminusOne + "; currentHash: " + currentHash + "; hashNminusOne: " + hashNminusOne);
+
+            String response;
+
+            // check that authentication is successful
+            if (!currentHash.equals(hashOfHashNminusOne)) {
+                response = Constants.AUTH_FAIL;
+                // TODO: for repeated bad password/online attacks, block user
+                mDb.clearUserAddressIfExists(username9);
+                mLogger.logMessage("*** Invalid login from user " + username9 + " (" + packet.getSocketAddress() + ").");
+            } else {
+                mLogger.logMessage("New client connected: " + username9 + " (" + packet.getSocketAddress() + ").");
+                mDb.setUserAuthenticated(username9, true);
+                response = Constants.AUTH_SUCCESS;
+            }
+            byte[] responseBytes9 = mCrypto.encryptWithSharedKey(c1sym_9, response);
+
+            // respond to user
+            Arrays.fill(mBuffer, (byte) 0);
+            byte[] messageHeader9 = Utils.getHeaderForMessageType(MessageType.CS_AUTH4);
+            System.arraycopy(messageHeader9, 0, mBuffer, 0, messageHeader9.length);
+            System.arraycopy(responseBytes9, 0, mBuffer, messageHeader9.length, responseBytes9.length);
+            int len9 = messageHeader9.length + responseBytes9.length;
+            sendBufferAsPacket(packet.getSocketAddress(), len9);
             break;
         case CMD_LIST:
             String username1 = mDb.getUsernameByAddress(packet.getSocketAddress());
-            mLogger.logMessage("Received list command from " + packet.getSocketAddress() + "(" + username1 + ")");
+            mLogger.logDebug("Received list command from " + packet.getSocketAddress() + "(" + username1 + ")");
 
             // check to make sure the client has access to the LIST command
             if (!mDb.isUserAuthenticated(username1)) {

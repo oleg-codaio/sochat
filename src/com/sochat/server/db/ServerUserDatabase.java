@@ -1,7 +1,9 @@
 package com.sochat.server.db;
 
+import java.io.UnsupportedEncodingException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.security.GeneralSecurityException;
 import java.util.HashMap;
 
 import javax.crypto.SecretKey;
@@ -14,7 +16,7 @@ import com.sochat.shared.SoChatException;
  * 
  * @author Oleg
  */
-public class ServerUserCache {
+public class ServerUserDatabase {
 
     /**
      * Username <-> User info
@@ -26,12 +28,12 @@ public class ServerUserCache {
      */
     private HashMap<SocketAddress, ServerUserInfo> mUsersByAddress = new HashMap<>();
 
-    public ServerUserCache() {
+    public ServerUserDatabase() throws UnsupportedEncodingException, GeneralSecurityException {
         // initialize with default entries
-        addUser("saba", "sabapassword");
-        addUser("oleg", "olegpassword");
-        addUser("guevara", "guevpassword");
-        addUser("amirali", "amirpassword");
+        addUser("saba", "sabap");
+        addUser("oleg", "olegp");
+        addUser("guevara", "guevp");
+        addUser("amirali", "amirp");
     }
 
     /**
@@ -39,8 +41,10 @@ public class ServerUserCache {
      * 
      * @param username
      * @param password
+     * @throws GeneralSecurityException
+     * @throws UnsupportedEncodingException
      */
-    public void addUser(String username, String password) {
+    public void addUser(String username, String password) throws UnsupportedEncodingException, GeneralSecurityException {
         mUsersByUsername.put(username, ServerUserInfo.create(username, password));
     }
 
@@ -54,13 +58,17 @@ public class ServerUserCache {
         if (!mUsersByUsername.containsKey(username))
             throw new IllegalArgumentException("Username does not exist in server DB.");
         ServerUserInfo info = mUsersByUsername.get(username);
-        info.setAddress(address);
+
+        // remove unsuccessful entries
+        if (mUsersByAddress.containsKey(info.getAddress()))
+            mUsersByAddress.remove(info.getAddress());
         mUsersByAddress.put(address, info);
+        info.setAddress(address);
     }
 
-    public void clearUserAddress(String username) {
+    public void clearUserAddressIfExists(String username) {
         if (!mUsersByAddress.containsKey(username))
-            throw new IllegalArgumentException("Username does not exist in server DB.");
+            return;
         mUsersByAddress.remove(mUsersByAddress.get(username));
         ServerUserInfo info = mUsersByUsername.get(username);
         info.clearAddress();
@@ -133,4 +141,43 @@ public class ServerUserCache {
             throw new SoChatException("No such user " + username + " in database when setting C1Sym.");
         return s.getC1Sym();
     }
+
+    public byte[] getUserSalt(String username) throws SoChatException {
+        ServerUserInfo s = mUsersByUsername.get(username);
+        if (s == null)
+            throw new SoChatException("No such user " + username + " in database when calling getUserSalt.");
+        return s.getSalt();
+    }
+
+    public int getUserN(String username) throws SoChatException {
+        ServerUserInfo s = mUsersByUsername.get(username);
+        if (s == null)
+            throw new SoChatException("No such user " + username + " in database when calling getUserN.");
+        return s.getN();
+    }
+
+    public String getUserPasswordHash(String username) throws SoChatException {
+        ServerUserInfo s = mUsersByUsername.get(username);
+        if (s == null)
+            throw new SoChatException("No such user " + username + " in database when calling getUserHash.");
+        return s.getPasswordHash();
+    }
+
+    /**
+     * This should be called after authentication is successful. Updates the
+     * database with the new hash and n.
+     * 
+     * @param username
+     * @param hash
+     * @param newN
+     * @throws SoChatException
+     */
+    public void updateOnSuccessfulAuthentication(String username, String hash, int newN) throws SoChatException {
+        ServerUserInfo s = mUsersByUsername.get(username);
+        if (s == null)
+            throw new SoChatException("No such user " + username + " in database when calling updateOnSuccessfulAuthentication.");
+        s.setPasswordHash(hash);
+        s.setN(newN);
+    }
+
 }

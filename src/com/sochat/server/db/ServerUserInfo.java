@@ -1,7 +1,14 @@
 package com.sochat.server.db;
 
-import javax.crypto.SecretKey;
+import java.io.UnsupportedEncodingException;
+import java.security.GeneralSecurityException;
+import java.security.SecureRandom;
+import java.util.Random;
 
+import javax.crypto.SecretKey;
+import javax.xml.bind.DatatypeConverter;
+
+import com.sochat.shared.CryptoUtils;
 import com.sochat.shared.UserInfo;
 
 /**
@@ -10,7 +17,13 @@ import com.sochat.shared.UserInfo;
  */
 class ServerUserInfo extends UserInfo {
 
+    private static final CryptoUtils mCrypto = new CryptoUtils();
+
+    private static final int MAX_N = 1000;
+
     private String passwordHash;
+    private byte[] salt;
+    private int n;
 
     /**
      * Session key - this will be forgotten when the user logs out or server
@@ -20,10 +33,22 @@ class ServerUserInfo extends UserInfo {
 
     private boolean isAuthenticated = false;
 
-    public static ServerUserInfo create(String username, String password) {
+    public static ServerUserInfo create(String username, String password) throws UnsupportedEncodingException, GeneralSecurityException {
         ServerUserInfo info = new ServerUserInfo(username);
-        info.setPasswordHash("TODO");
-        // TODO calculate password hash, add info for Lambert's, etc...
+
+        // generate salt
+        final Random saltr = new SecureRandom();
+        byte[] salt = new byte[32];
+        saltr.nextBytes(salt);
+        info.setSalt(salt);
+
+        // compute hash^1000(P|salt))
+        String passwordBase64 = DatatypeConverter.printBase64Binary(password.getBytes("UTF-8"));
+        String hash = mCrypto.calculateLamportHash(passwordBase64, salt, MAX_N);
+        info.setPasswordHash(hash);
+
+        // and set N to 1000
+        info.setN(MAX_N);
 
         return info;
     }
@@ -59,6 +84,22 @@ class ServerUserInfo extends UserInfo {
 
     public void setC1Sym(SecretKey c1Sym) {
         this.c1Sym = c1Sym;
+    }
+
+    public byte[] getSalt() {
+        return salt;
+    }
+
+    public void setSalt(byte[] salt) {
+        this.salt = salt;
+    }
+
+    public int getN() {
+        return n;
+    }
+
+    public void setN(int n) {
+        this.n = n;
     }
 
 }

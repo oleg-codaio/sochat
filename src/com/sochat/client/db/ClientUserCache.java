@@ -1,6 +1,5 @@
 package com.sochat.client.db;
 
-import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.util.HashMap;
@@ -102,7 +101,6 @@ public class ClientUserCache {
             String username = userInfo[0].trim();
             String ip = userInfo[1].trim();
             String port = userInfo[2].trim();
-
 
             SocketAddress addr = new InetSocketAddress(ip, Integer.parseInt(port));
             if (!mUsersByUsername.containsKey(username)) {

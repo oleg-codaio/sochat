@@ -10,7 +10,7 @@ import java.io.IOException;
  */
 public abstract class UserIO {
 
-    private static boolean ENABLE_DEBUG = true;
+    private static boolean ENABLE_DEBUG = false;
 
     public abstract void logMessage(String msg);
 
