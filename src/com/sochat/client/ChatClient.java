@@ -10,7 +10,6 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.SocketException;
 import java.security.GeneralSecurityException;
-import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.security.SecureRandom;
@@ -232,6 +231,10 @@ public class ChatClient implements Runnable {
             ClientUserInfo user = mUsers.getUserInfo(username);
 
             if (user.isAuthenticated()) {
+                // prepend nonce
+                message = user.getNextSendNonce() + "::"
+                        + DatatypeConverter.printBase64Binary(message.getBytes("UTF-8"));
+
                 // Encrypt message with K12 and send it out
                 SocketAddress c2address = mUsers.getAddress(username);
 
@@ -254,9 +257,15 @@ public class ChatClient implements Runnable {
         }
     }
 
-    private void sendListCommand() throws InvalidKeyException, NoSuchAlgorithmException, NoSuchPaddingException,
-            IllegalBlockSizeException, BadPaddingException, GeneralSecurityException, SocketException, IOException,
-            SoChatException {
+    /**
+     * Sends a request for a list to the server.
+     * 
+     * @throws GeneralSecurityException
+     * @throws SocketException
+     * @throws IOException
+     * @throws SoChatException
+     */
+    private void sendListCommand() throws GeneralSecurityException, SocketException, IOException, SoChatException {
 
         mLastListCommandR = mCrypto.generateRandom();
         String rStr = mLastListCommandR.toString(16);
@@ -535,8 +544,16 @@ public class ChatClient implements Runnable {
                 String usernameM = mUsers.getUsernameByAddress(packet.getSocketAddress());
                 ClientUserInfo uM = mUsers.getUserInfo(usernameM);
                 String decryptedMsg = mCrypto.decryptWithSharedKey(uM.getK12(), ccMsg);
+                String[] decryptedMsgSplit = decryptedMsg.split("::");
+                if (decryptedMsgSplit.length != 2)
+                    throw new SoChatException("Invalid send packet");
+                long nonce = Long.parseLong(decryptedMsgSplit[0]);
+                String message = new String(DatatypeConverter.parseBase64Binary(decryptedMsgSplit[1]), "UTF-8");
 
-                mUserIo.logMessage("<From " + usernameM + ">: " + decryptedMsg);
+                if (uM.checkReceivedNonce(nonce))
+                    mUserIo.logMessage("<From " + usernameM + ">: " + message);
+                else
+                    mUserIo.logError("Out-of-order message from " + usernameM + " or you may be under attack.");
 
                 break;
 

@@ -15,6 +15,7 @@ import com.sochat.shared.UserInfo;
  */
 public class ClientUserInfo extends UserInfo {
 
+    // secret key to talk to this client
     private SecretKey k12;
 
     // if this client is C1:
@@ -26,6 +27,10 @@ public class ClientUserInfo extends UserInfo {
     private Queue<String> messagesToSend = new LinkedList<>();
 
     // if this client is C2, only needs to know secret key and nc2
+
+    // nonces to prevent replay attacks
+    // TODO: will overflow eventually?
+    long sendNonce = 0, receiveNonce = -1;
 
     private boolean isAuthenticated = false;
 
@@ -100,5 +105,26 @@ public class ClientUserInfo extends UserInfo {
 
     public Queue<String> getMessageQueue() {
         return messagesToSend;
+    }
+
+    public long getNextSendNonce() {
+        return sendNonce++;
+    }
+
+    /**
+     * Returns if a message is valid based on its nonce.
+     * 
+     * @param nonce
+     * @return
+     */
+    public boolean checkReceivedNonce(long nonce) {
+        if (nonce > receiveNonce) {
+            receiveNonce = nonce;
+            return true;
+        } else {
+            // older nonce
+            return false;
+        }
+
     }
 }
