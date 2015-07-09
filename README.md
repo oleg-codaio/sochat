@@ -2,6 +2,19 @@ sochat
 ======
 soChat - secure instant messaging service.
 
+Implementation
+--------------
+This is a server-based messaging service. The assumptions are that the
+server contains the list of usernames, and the respective salted Lamport's
+n-fold hashes.
+
+The login protocol for each client securely establishes a symmetric key for
+client-server communication.
+
+Actual messaging between clients is established though a modified
+Needham-Schroeder protocol; the server is used as an intermediary to mutually
+verify the clients' identities and establish an ephemeral shared key.
+
 Installation and Runnning
 -------------------------
 First, go into the `_bin/` directory, which contains runnable JAR files.
