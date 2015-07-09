@@ -317,7 +317,7 @@ public class ChatServer extends AbstractExecutionThreadService {
             BigInteger nc2 = new BigInteger(C2SymDataSplit[1], 16);
 
             // Now construct the response packet
-            // C1Sym{NC1, K12, Username(C2), C2Sym{K12, Username(C1), N’C2}}
+            // C1Sym{NC1, K12, Username(C2), C2Sym{K12, Username(C1), NÂ’C2}}
 
             // session key for data, should be forgotten by server for sake of
             // forward secrecy
@@ -412,7 +412,7 @@ public class ChatServer extends AbstractExecutionThreadService {
     }
 
     private static void printUsage() {
-        System.out.println("SOChat, by Oleg and Saba for CS4740 final project\n\n"
+        System.out.println("SOChat, by Oleg and Saba for a final project\n\n"
                 + "usage: java -jar SOChatServer.jar serverPort\n\n" + "Report bugs to oleg@foobox.com.");
     }
 }
