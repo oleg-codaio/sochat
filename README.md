@@ -1,6 +1,6 @@
 sochat
 ======
-soChat - secure instant messaging service for Northeastern CS 6740.
+soChat - secure instant messaging service.
 
 Installation and Runnning
 -------------------------
@@ -15,13 +15,15 @@ To run the client: java -jar client.jar
 
 
 Registered users:
--------------------------------------------
-Username          Password 
-saba              sabap
-oleg              olegp
-joni              jonip
-amirali           amirp
-guevara           guevp
+    Username          Password 
+    saba              sabap
+    oleg              olegp
+    joni              jonip
+    amirali           amirp
+    guevara           guevp
+
+
+Usage
 -------------------------------------------
 
 To get a list of connected users, type: 
