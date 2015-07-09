@@ -415,7 +415,7 @@ public class ChatClient implements Runnable {
             }
 
             case CC_AUTH4: {// C1Sym{NC1, K12, Username(C2), C2Sym{K12,
-                            // Username(C1), N’C2}}
+                            // Username(C1), NÂ’C2}}
                 byte[] ccauth4 = Arrays.copyOfRange(mReceiveBuffer, Constants.MESSAGE_HEADER.length + 1,
                         packet.getLength());
 
@@ -638,7 +638,7 @@ public class ChatClient implements Runnable {
     }
 
     private static void printUsage() {
-        System.out.println("SOChat, by Oleg and Saba for CS4740 final project. Configure with client.config.\n\n"
+        System.out.println("SOChat, by Oleg and Saba for a final project. Configure with client.config.\n\n"
                 + "usage: java SOChat\n\n" + "Report bugs to me@olegvaskevich.com.");
     }
 
