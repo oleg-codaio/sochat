@@ -4,17 +4,17 @@ soChat - secure instant messaging service.
 
 Installation and Runnning
 -------------------------
-First, go into the _bin/ directory, which contains runnable JAR files.
+First, go into the `_bin/` directory, which contains runnable JAR files.
 
 These instructions are for Windows. Both the client and the server have
 configuration files.
 
-To run the server: java -jar server.jar 9000
+To run the server: `java -jar server.jar 9000`
 
-To run the client: java -jar client.jar
-
+To run the client: `java -jar client.jar`
 
 Registered users:
+
     Username          Password 
     saba              sabap
     oleg              olegp
@@ -28,13 +28,13 @@ Usage
 
 To get a list of connected users, type: 
 
-list 
+    list 
 
 in the command prompt. This command is called automatically when a 
 user connects at first. To send a message to another user, for example, 
 to send a message to oleg as saba, type: 
 
-send oleg WHATEVERMESSAGEYOUWANTTOSEND
+    send oleg WHATEVERMESSAGEYOUWANTTOSEND
 
 into the command prompt. The thing to note here is that it is only possible
 to send a message to the user you know is connected, thus, if you have called
